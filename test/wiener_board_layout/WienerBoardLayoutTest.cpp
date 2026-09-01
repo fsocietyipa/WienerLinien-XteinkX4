@@ -126,13 +126,9 @@ TEST(WienerBoardLayoutTest, SectionCountNeverExceedsTheColumnCap) {
 
 // --- Degenerate inputs ------------------------------------------------------
 
-TEST(WienerBoardLayoutTest, NoStopsProducesNoColumns) {
-  EXPECT_EQ(planColumns(0, 0, 3, 3).columnCount, 0u);
-}
+TEST(WienerBoardLayoutTest, NoStopsProducesNoColumns) { EXPECT_EQ(planColumns(0, 0, 3, 3).columnCount, 0u); }
 
-TEST(WienerBoardLayoutTest, ZeroColumnsProducesNoColumns) {
-  EXPECT_EQ(planColumns(4, 0, 0, 3).columnCount, 0u);
-}
+TEST(WienerBoardLayoutTest, ZeroColumnsProducesNoColumns) { EXPECT_EQ(planColumns(4, 0, 0, 3).columnCount, 0u); }
 
 TEST(WienerBoardLayoutTest, ZeroRowsPerStopIsTreatedAsOne) {
   const auto layout = planColumns(4, 0, 1, 0);

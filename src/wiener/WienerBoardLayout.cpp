@@ -12,8 +12,7 @@ BoardLayout planColumns(const size_t stopCount, const size_t activeStopIndex, co
   const size_t rows = std::max<size_t>(1, rowsPerStop);
   // Whole stops only: enough of them to reach the target, never a stop split
   // across a column boundary.
-  const size_t sectionsPerColumn =
-      std::min(MAX_SECTIONS_PER_COLUMN, (TARGET_ROWS_PER_COLUMN + rows - 1) / rows);
+  const size_t sectionsPerColumn = std::min(MAX_SECTIONS_PER_COLUMN, (TARGET_ROWS_PER_COLUMN + rows - 1) / rows);
   const size_t availableColumns = std::min({configuredColumns, MAX_COLUMNS, stopCount});
 
   const size_t totalSections = std::min(stopCount, availableColumns * sectionsPerColumn);
