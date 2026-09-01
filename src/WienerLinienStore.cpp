@@ -1,0 +1,117 @@
+#include "WienerLinienStore.h"
+
+#include <algorithm>
+#include <utility>
+
+namespace {
+constexpr uint8_t MIN_DEPARTURES = 1;
+constexpr uint8_t MAX_DEPARTURES = 10;
+constexpr uint8_t MIN_COLUMNS = 1;
+constexpr uint8_t MAX_COLUMNS = 3;
+constexpr uint16_t MIN_REFRESH_SECONDS = 30;
+constexpr uint16_t MAX_REFRESH_SECONDS = 300;
+constexpr size_t MAX_STOPS = 8;
+}  // namespace
+
+void WienerLinienStore::toJson(JsonDocument& doc) const {
+  JsonArray stops = doc["stops"].to<JsonArray>();
+  for (const auto& stop : config.stops) {
+    JsonObject value = stops.add<JsonObject>();
+    value["name"] = stop.name;
+    value["rbl"] = stop.rbl;
+    value["line_filter"] = stop.lineFilter;
+  }
+  doc["active_stop"] = config.activeStopIndex;
+  doc["max_departures"] = config.maxDepartures;
+  doc["column_count"] = config.columnCount;
+  doc["dark_theme"] = config.darkTheme;
+  doc["refresh_seconds"] = config.refreshSeconds;
+}
+
+bool WienerLinienStore::fromJson(JsonVariantConst doc) {
+  config.stops.clear();
+  JsonArrayConst stops = doc["stops"].as<JsonArrayConst>();
+  config.stops.reserve(std::min(stops.size(), MAX_STOPS));
+  for (JsonObjectConst value : stops) {
+    if (config.stops.size() >= MAX_STOPS) break;
+    WienerLinienStop stop;
+    stop.name = value["name"] | "";
+    stop.rbl = value["rbl"] | "";
+    stop.lineFilter = value["line_filter"] | "";
+    config.stops.push_back(std::move(stop));
+  }
+
+  // Migrate the first single-stop development format.
+  const char* legacyRbl = doc["rbl"] | "";
+  if (config.stops.empty() && legacyRbl[0] != '\0') {
+    config.stops.push_back(WienerLinienStop{"", legacyRbl, doc["line_filter"] | ""});
+    requestResave();
+  }
+  config.activeStopIndex = static_cast<uint8_t>(doc["active_stop"] | 0);
+  if (config.stops.empty() || config.activeStopIndex >= config.stops.size()) config.activeStopIndex = 0;
+  config.maxDepartures = std::clamp(static_cast<uint8_t>(doc["max_departures"] | 6), MIN_DEPARTURES, MAX_DEPARTURES);
+  config.columnCount = std::clamp(static_cast<uint8_t>(doc["column_count"] | 1), MIN_COLUMNS, MAX_COLUMNS);
+  config.darkTheme = doc["dark_theme"] | true;
+  config.refreshSeconds =
+      std::clamp(static_cast<uint16_t>(doc["refresh_seconds"] | 60), MIN_REFRESH_SECONDS, MAX_REFRESH_SECONDS);
+  return true;
+}
+
+const WienerLinienStop* WienerLinienStore::getStop(const size_t index) const {
+  return index < config.stops.size() ? &config.stops[index] : nullptr;
+}
+
+const WienerLinienStop* WienerLinienStore::getActiveStop() const { return getStop(config.activeStopIndex); }
+
+bool WienerLinienStore::addStop(const WienerLinienStop& stop) {
+  if (config.stops.size() >= MAX_STOPS) return false;
+  config.stops.push_back(stop);
+  config.activeStopIndex = static_cast<uint8_t>(config.stops.size() - 1);
+  return saveToFile();
+}
+
+bool WienerLinienStore::updateStop(const size_t index, const WienerLinienStop& stop) {
+  if (index >= config.stops.size()) return false;
+  config.stops[index] = stop;
+  return saveToFile();
+}
+
+bool WienerLinienStore::removeStop(const size_t index) {
+  if (index >= config.stops.size()) return false;
+  const uint8_t previousActive = config.activeStopIndex;
+  config.stops.erase(config.stops.begin() + static_cast<ptrdiff_t>(index));
+  if (config.stops.empty()) {
+    config.activeStopIndex = 0;
+  } else if (index < previousActive) {
+    config.activeStopIndex = static_cast<uint8_t>(previousActive - 1);
+  } else if (index == previousActive && config.activeStopIndex >= config.stops.size()) {
+    config.activeStopIndex = static_cast<uint8_t>(config.stops.size() - 1);
+  }
+  return saveToFile();
+}
+
+bool WienerLinienStore::setActiveStop(const size_t index) {
+  if (index >= config.stops.size()) return false;
+  config.activeStopIndex = static_cast<uint8_t>(index);
+  return saveToFile();
+}
+
+bool WienerLinienStore::setMaxDepartures(const uint8_t value) {
+  config.maxDepartures = std::clamp(value, MIN_DEPARTURES, MAX_DEPARTURES);
+  return saveToFile();
+}
+
+bool WienerLinienStore::setColumnCount(const uint8_t value) {
+  config.columnCount = std::clamp(value, MIN_COLUMNS, MAX_COLUMNS);
+  return saveToFile();
+}
+
+bool WienerLinienStore::setDarkTheme(const bool value) {
+  config.darkTheme = value;
+  return saveToFile();
+}
+
+bool WienerLinienStore::setRefreshSeconds(const uint16_t value) {
+  config.refreshSeconds = std::clamp(value, MIN_REFRESH_SECONDS, MAX_REFRESH_SECONDS);
+  return saveToFile();
+}
