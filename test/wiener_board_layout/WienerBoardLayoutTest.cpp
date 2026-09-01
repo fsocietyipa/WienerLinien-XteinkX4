@@ -32,24 +32,25 @@ size_t totalSections(const BoardLayout& layout) {
 // --- A stop that already fills the column keeps it to itself ----------------
 
 TEST(WienerBoardLayoutTest, ThreeRowsPerStopIsOneStopPerColumn) {
-  const auto layout = planColumns(/*stopCount=*/3, /*activeStopIndex=*/0, /*configuredColumns=*/1, /*rowsPerStop=*/3);
+  const auto layout = planColumns(/*stopCount=*/3, /*activeStopIndex=*/0, /*configuredColumns=*/1, /*rowsPerStop=*/3,
+                                  /*targetRows=*/3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0}}));
 }
 
 TEST(WienerBoardLayoutTest, ManyRowsPerStopIsOneStopPerColumn) {
-  const auto layout = planColumns(4, 0, 3, 6);
+  const auto layout = planColumns(4, 0, 3, 6, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0}, {1}, {2}}));
 }
 
 // --- A low per-stop setting pulls in following stops ------------------------
 
 TEST(WienerBoardLayoutTest, OneRowPerStopStacksThreeStopsInOneColumn) {
-  const auto layout = planColumns(5, 0, 1, 1);
+  const auto layout = planColumns(5, 0, 1, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0, 1, 2}}));
 }
 
 TEST(WienerBoardLayoutTest, TwoRowsPerStopStacksTwoStops) {
-  const auto layout = planColumns(5, 0, 1, 2);
+  const auto layout = planColumns(5, 0, 1, 2, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0, 1}}));
 }
 
@@ -57,36 +58,36 @@ TEST(WienerBoardLayoutTest, TwoRowsPerStopStacksTwoStops) {
 
 // Columns read top-to-bottom then left-to-right.
 TEST(WienerBoardLayoutTest, TwoColumnsFillDownThenAcross) {
-  const auto layout = planColumns(6, 0, 2, 1);
+  const auto layout = planColumns(6, 0, 2, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0, 1, 2}, {3, 4, 5}}));
 }
 
 // The stacking must not swallow the second column: two stops across two
 // columns belong side by side, not stacked in the first.
 TEST(WienerBoardLayoutTest, TwoStopsInTwoColumnsSitSideBySide) {
-  const auto layout = planColumns(2, 0, 2, 1);
+  const auto layout = planColumns(2, 0, 2, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0}, {1}}));
 }
 
 TEST(WienerBoardLayoutTest, ThreeStopsInTwoColumnsFavourTheLeft) {
-  const auto layout = planColumns(3, 0, 2, 1);
+  const auto layout = planColumns(3, 0, 2, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0, 1}, {2}}));
 }
 
 TEST(WienerBoardLayoutTest, ThreeColumnsSpreadEightStops) {
-  const auto layout = planColumns(8, 0, 3, 1);
+  const auto layout = planColumns(8, 0, 3, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0, 1, 2}, {3, 4, 5}, {6, 7}}));
 }
 
 // --- Previous/Next slides the whole visible set by one stop -----------------
 
 TEST(WienerBoardLayoutTest, ActiveStopSlidesTheWholeSet) {
-  const auto layout = planColumns(6, 1, 2, 1);
+  const auto layout = planColumns(6, 1, 2, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{1, 2, 3}, {4, 5, 0}}));
 }
 
 TEST(WienerBoardLayoutTest, SlidingWrapsPastTheEnd) {
-  const auto layout = planColumns(4, 3, 1, 1);
+  const auto layout = planColumns(4, 3, 1, 1, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{3, 0, 1}}));
 }
 
@@ -96,14 +97,17 @@ TEST(WienerBoardLayoutTest, FewerStopsThanSlotsNeverRepeatsAStop) {
   for (size_t stopCount = 1; stopCount <= 8; ++stopCount) {
     for (size_t columns = 1; columns <= 3; ++columns) {
       for (size_t rows = 1; rows <= 10; ++rows) {
-        const auto layout = planColumns(stopCount, 0, columns, rows);
-        std::vector<size_t> seen;
-        for (const auto& column : columnsOf(layout)) seen.insert(seen.end(), column.begin(), column.end());
-        std::vector<size_t> unique = seen;
-        std::sort(unique.begin(), unique.end());
-        unique.erase(std::unique(unique.begin(), unique.end()), unique.end());
-        EXPECT_EQ(seen.size(), unique.size()) << "stops=" << stopCount << " columns=" << columns << " rows=" << rows;
-        EXPECT_LE(seen.size(), stopCount);
+        for (size_t target = 1; target <= 4; ++target) {
+          const auto layout = planColumns(stopCount, 0, columns, rows, target);
+          std::vector<size_t> seen;
+          for (const auto& column : columnsOf(layout)) seen.insert(seen.end(), column.begin(), column.end());
+          std::vector<size_t> unique = seen;
+          std::sort(unique.begin(), unique.end());
+          unique.erase(std::unique(unique.begin(), unique.end()), unique.end());
+          EXPECT_EQ(seen.size(), unique.size())
+              << "stops=" << stopCount << " columns=" << columns << " rows=" << rows << " target=" << target;
+          EXPECT_LE(seen.size(), stopCount);
+        }
       }
     }
   }
@@ -113,30 +117,52 @@ TEST(WienerBoardLayoutTest, SectionCountNeverExceedsTheColumnCap) {
   for (size_t stopCount = 1; stopCount <= 8; ++stopCount) {
     for (size_t columns = 1; columns <= 3; ++columns) {
       for (size_t rows = 1; rows <= 10; ++rows) {
-        const auto layout = planColumns(stopCount, 0, columns, rows);
-        EXPECT_LE(layout.columnCount, wiener_board::MAX_COLUMNS);
-        for (size_t column = 0; column < layout.columnCount; ++column) {
-          EXPECT_GE(layout.columns[column].sectionCount, 1u);
-          EXPECT_LE(layout.columns[column].sectionCount, wiener_board::MAX_SECTIONS_PER_COLUMN);
+        for (size_t target = 1; target <= 4; ++target) {
+          const auto layout = planColumns(stopCount, 0, columns, rows, target);
+          EXPECT_LE(layout.columnCount, wiener_board::MAX_COLUMNS);
+          for (size_t column = 0; column < layout.columnCount; ++column) {
+            EXPECT_GE(layout.columns[column].sectionCount, 1u);
+            EXPECT_LE(layout.columns[column].sectionCount, wiener_board::MAX_SECTIONS_PER_COLUMN);
+          }
         }
       }
     }
   }
 }
 
+// --- The "Board rows" setting -----------------------------------------------
+
+TEST(WienerBoardLayoutTest, TargetRowsControlsHowManyStopsStack) {
+  EXPECT_EQ(planColumns(8, 0, 1, 1, 1).columns[0].sectionCount, 1u);
+  EXPECT_EQ(planColumns(8, 0, 1, 1, 2).columns[0].sectionCount, 2u);
+  EXPECT_EQ(planColumns(8, 0, 1, 1, 3).columns[0].sectionCount, 3u);
+  EXPECT_EQ(planColumns(8, 0, 1, 1, 4).columns[0].sectionCount, 4u);
+}
+
+TEST(WienerBoardLayoutTest, TargetRowsIsClampedToTheSettingRange) {
+  EXPECT_EQ(planColumns(8, 0, 1, 1, 0).columns[0].sectionCount, 1u);
+  EXPECT_EQ(planColumns(8, 0, 1, 1, 99).columns[0].sectionCount, wiener_board::MAX_TARGET_ROWS);
+}
+
+// A stop that already supplies the target keeps the column to itself.
+TEST(WienerBoardLayoutTest, TargetRowsDoesNotSplitAStop) {
+  EXPECT_EQ(planColumns(8, 0, 1, 4, 4).columns[0].sectionCount, 1u);
+  EXPECT_EQ(planColumns(8, 0, 1, 3, 4).columns[0].sectionCount, 2u);
+}
+
 // --- Degenerate inputs ------------------------------------------------------
 
-TEST(WienerBoardLayoutTest, NoStopsProducesNoColumns) { EXPECT_EQ(planColumns(0, 0, 3, 3).columnCount, 0u); }
+TEST(WienerBoardLayoutTest, NoStopsProducesNoColumns) { EXPECT_EQ(planColumns(0, 0, 3, 3, 3).columnCount, 0u); }
 
-TEST(WienerBoardLayoutTest, ZeroColumnsProducesNoColumns) { EXPECT_EQ(planColumns(4, 0, 0, 3).columnCount, 0u); }
+TEST(WienerBoardLayoutTest, ZeroColumnsProducesNoColumns) { EXPECT_EQ(planColumns(4, 0, 0, 3, 3).columnCount, 0u); }
 
 TEST(WienerBoardLayoutTest, ZeroRowsPerStopIsTreatedAsOne) {
-  const auto layout = planColumns(4, 0, 1, 0);
+  const auto layout = planColumns(4, 0, 1, 0, 3);
   EXPECT_EQ(totalSections(layout), 3u);
 }
 
 TEST(WienerBoardLayoutTest, MoreConfiguredColumnsThanStopsUsesOnlyWhatIsNeeded) {
-  const auto layout = planColumns(1, 0, 3, 3);
+  const auto layout = planColumns(1, 0, 3, 3, 3);
   EXPECT_EQ(columnsOf(layout), (std::vector<std::vector<size_t>>{{0}}));
 }
 

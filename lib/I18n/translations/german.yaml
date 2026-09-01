@@ -279,6 +279,7 @@ STR_WL_RBL_HINT: "Die RBL-ID steht in der Open-Data-Haltestellenliste der Wiener
 STR_WL_LINE_FILTER: "Linienfilter"
 STR_WL_DEPARTURE_COUNT: "Abfahrten je Haltestelle"
 STR_WL_STOP_COLUMNS: "Haltestellenspalten"
+STR_WL_BOARD_ROWS: "Anzeigezeilen"
 STR_WL_BOARD_THEME: "Anzeigethema"
 STR_WL_LINE_HEADER: "Linie"
 STR_WL_MINUTES_HEADER: "Abfahrt in Minuten"

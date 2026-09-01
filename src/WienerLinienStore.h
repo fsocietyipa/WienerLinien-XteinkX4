@@ -22,6 +22,8 @@ struct WienerLinienConfig {
   uint8_t activeStopIndex = 0;
   uint8_t maxDepartures = 6;
   uint8_t columnCount = 1;
+  // Departure rows a column is packed to before it stops pulling in stops.
+  uint8_t boardRows = 3;
   bool darkTheme = true;
   uint16_t refreshSeconds = 60;
 };
@@ -48,6 +50,7 @@ class WienerLinienStore : public PersistableStore<WienerLinienStore> {
   bool setActiveStop(size_t index);
   bool setMaxDepartures(uint8_t value);
   bool setColumnCount(uint8_t value);
+  bool setBoardRows(uint8_t value);
   bool setDarkTheme(bool value);
   bool setRefreshSeconds(uint16_t value);
 };

@@ -13,15 +13,22 @@
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "activities/wiener/WienerStopsActivity.h"
 #include "components/UITheme.h"
+#include "wiener/WienerBoardLayout.h"
 
 namespace fui = freeink::ui;
 
 WienerLinienSettingsActivity::WienerLinienSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : UiListActivity("WienerLinienSettings", renderer, mappedInput) {
   static constexpr StrId labels[MENU_ITEMS] = {
-      StrId::STR_WL_STOPS,           StrId::STR_WIFI_NETWORKS,  StrId::STR_WL_DEPARTURE_COUNT,
-      StrId::STR_WL_STOP_COLUMNS,    StrId::STR_WL_BOARD_THEME, StrId::STR_WL_REFRESH_INTERVAL,
-      StrId::STR_SD_FIRMWARE_UPDATE, StrId::STR_CHECK_UPDATES,
+      StrId::STR_WL_STOPS,
+      StrId::STR_WIFI_NETWORKS,
+      StrId::STR_WL_DEPARTURE_COUNT,
+      StrId::STR_WL_STOP_COLUMNS,
+      StrId::STR_WL_BOARD_ROWS,
+      StrId::STR_WL_BOARD_THEME,
+      StrId::STR_WL_REFRESH_INTERVAL,
+      StrId::STR_SD_FIRMWARE_UPDATE,
+      StrId::STR_CHECK_UPDATES,
   };
   for (int index = 0; index < MENU_ITEMS; ++index) {
     rowItems[index].label = I18N.get(labels[index]);
@@ -30,6 +37,12 @@ WienerLinienSettingsActivity::WienerLinienSettingsActivity(GfxRenderer& renderer
 }
 
 const char* WienerLinienSettingsActivity::headerTitle() const { return tr(STR_WL_SETTINGS); }
+
+void WienerLinienSettingsActivity::drawChrome() {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight}, headerTitle(),
+                 CROSSPOINT_VERSION);
+}
 
 void WienerLinienSettingsActivity::activateIndex(const int index) {
   app.clearTapFlash();
@@ -55,10 +68,12 @@ void WienerLinienSettingsActivity::activateIndex(const int index) {
   } else if (index == 3) {
     cycleColumnCount();
   } else if (index == 4) {
-    cycleTheme();
+    cycleBoardRows();
   } else if (index == 5) {
-    cycleRefreshInterval();
+    cycleTheme();
   } else if (index == 6) {
+    cycleRefreshInterval();
+  } else if (index == 7) {
     auto activity = makeUniqueNoThrow<SdFirmwareUpdateActivity>(renderer, mappedInput);
     if (!activity) {
       showError = true;
@@ -66,7 +81,7 @@ void WienerLinienSettingsActivity::activateIndex(const int index) {
       return;
     }
     startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
-  } else if (index == 7) {
+  } else if (index == 8) {
     // Pulls the latest GitHub release and flashes it to the inactive OTA slot.
     // Backing out of this activity silent-restarts (OtaUpdateActivity::onExit),
     // which boots straight back to the departure board.
@@ -91,6 +106,14 @@ void WienerLinienSettingsActivity::cycleColumnCount() {
   const uint8_t current = WIENER_LINIEN_STORE.getConfig().columnCount;
   const uint8_t next = current >= 3 ? 1 : static_cast<uint8_t>(current + 1);
   showError = !WIENER_LINIEN_STORE.setColumnCount(next);
+  requestUpdate();
+}
+
+void WienerLinienSettingsActivity::cycleBoardRows() {
+  const uint8_t current = WIENER_LINIEN_STORE.getConfig().boardRows;
+  const uint8_t next = current >= wiener_board::MAX_TARGET_ROWS ? static_cast<uint8_t>(wiener_board::MIN_TARGET_ROWS)
+                                                                : static_cast<uint8_t>(current + 1);
+  showError = !WIENER_LINIEN_STORE.setBoardRows(next);
   requestUpdate();
 }
 
@@ -128,6 +151,7 @@ void WienerLinienSettingsActivity::buildScreen(UiScreen& screen) {
     snprintf(wifiValue, sizeof(wifiValue), "%s", tr(STR_WL_NOT_CONNECTED));
   snprintf(departureCountValue, sizeof(departureCountValue), "%u", config.maxDepartures);
   snprintf(columnCountValue, sizeof(columnCountValue), "%u", config.columnCount);
+  snprintf(boardRowsValue, sizeof(boardRowsValue), "%u", config.boardRows);
   themeValue = config.darkTheme ? tr(STR_DARK) : tr(STR_LIGHT);
   snprintf(refreshValue, sizeof(refreshValue), tr(STR_WL_SECONDS_FORMAT), config.refreshSeconds);
 
@@ -135,10 +159,11 @@ void WienerLinienSettingsActivity::buildScreen(UiScreen& screen) {
   rowItems[1].value = wifiValue;
   rowItems[2].value = departureCountValue;
   rowItems[3].value = columnCountValue;
-  rowItems[4].value = themeValue;
-  rowItems[5].value = refreshValue;
-  rowItems[6].value = ">";
+  rowItems[4].value = boardRowsValue;
+  rowItems[5].value = themeValue;
+  rowItems[6].value = refreshValue;
   rowItems[7].value = ">";
+  rowItems[8].value = ">";
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);

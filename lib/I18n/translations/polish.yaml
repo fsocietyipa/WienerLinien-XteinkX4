@@ -312,6 +312,7 @@ STR_WL_RBL_HINT: "Identyfikator RBL znajdziesz na liście przystanków Open Data
 STR_WL_LINE_FILTER: "Filtr linii"
 STR_WL_DEPARTURE_COUNT: "Odjazdy na przystanek"
 STR_WL_STOP_COLUMNS: "Kolumny przystanków"
+STR_WL_BOARD_ROWS: "Wiersze tablicy"
 STR_WL_BOARD_THEME: "Motyw tablicy"
 STR_WL_LINE_HEADER: "Linia"
 STR_WL_MINUTES_HEADER: "Odjazd za minuty"

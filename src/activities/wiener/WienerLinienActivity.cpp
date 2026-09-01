@@ -27,7 +27,12 @@ constexpr const char* API_URL =
     "https://www.wienerlinien.at/ogd_realtime/monitor?activateTrafficInfo=stoerunglang&rbl=";
 constexpr int HEADER_HEIGHT = 36;
 constexpr int LABEL_HEIGHT = 20;
-constexpr int TOOLBAR_HEIGHT = 54;
+// The four hint buttons sit along the right edge: the board runs in landscape,
+// which puts the device's physical front buttons on that side rather than under
+// a bottom strip. Half the previous 54x42 bottom-strip sizing.
+constexpr int TOOLBAR_WIDTH = 27;
+constexpr int BUTTON_WIDTH = 21;
+constexpr int BUTTON_HEIGHT = 30;
 constexpr unsigned long WIFI_RETRY_MS = 15000;
 
 void trimToWidth(char* text, const int width, const int scale = 1) {
@@ -67,6 +72,30 @@ void drawIcon(const GfxRenderer& renderer, const freeink::Icon& icon, const int 
   }
 }
 
+// Half-size icon: each destination pixel covers a 2x2 source block and is drawn
+// when any of the four is set. Averaging would drop the single-pixel strokes in
+// these 1-bpp assets; OR keeps them at the cost of looking slightly bolder.
+void drawIconHalf(const GfxRenderer& renderer, const freeink::Icon& icon, const int x, const int y, const bool ink) {
+  const int rowBytes = (icon.w + 7) / 8;
+  const int halfWidth = icon.w / 2;
+  const int halfHeight = icon.h / 2;
+  for (int row = 0; row < halfHeight; ++row) {
+    for (int column = 0; column < halfWidth; ++column) {
+      bool set = false;
+      for (int dy = 0; dy < 2 && !set; ++dy) {
+        for (int dx = 0; dx < 2 && !set; ++dx) {
+          const int sourceRow = row * 2 + dy;
+          const int sourceColumn = column * 2 + dx;
+          if (sourceRow >= icon.h || sourceColumn >= icon.w) continue;
+          const uint8_t value = icon.bits[sourceRow * rowBytes + sourceColumn / 8];
+          if ((value & (0x80U >> (sourceColumn % 8))) == 0) set = true;
+        }
+      }
+      if (set) renderer.drawPixel(x + column, y + row, ink);
+    }
+  }
+}
+
 void drawRefreshIcon(const GfxRenderer& renderer, const int x, const int y, const bool ink) {
   constexpr int width = 2;
   renderer.drawLine(x + 6, y + 15, x + 8, y + 9, width, ink);
@@ -84,6 +113,25 @@ void drawRefreshIcon(const GfxRenderer& renderer, const int x, const int y, cons
   renderer.drawLine(x + 7, y + 23, x + 5, y + 20, width, ink);
   renderer.drawLine(x + 5, y + 20, x + 5, y + 26, width, ink);
   renderer.drawLine(x + 5, y + 20, x + 11, y + 20, width, ink);
+}
+
+// The same glyph at half scale, to match drawIconHalf in the toolbar.
+void drawRefreshIconHalf(const GfxRenderer& renderer, const int x, const int y, const bool ink) {
+  renderer.drawLine(x + 3, y + 8, x + 4, y + 5, 1, ink);
+  renderer.drawLine(x + 4, y + 5, x + 7, y + 3, 1, ink);
+  renderer.drawLine(x + 7, y + 3, x + 10, y + 3, 1, ink);
+  renderer.drawLine(x + 10, y + 3, x + 13, y + 5, 1, ink);
+  renderer.drawLine(x + 13, y + 5, x + 14, y + 6, 1, ink);
+  renderer.drawLine(x + 11, y + 6, x + 14, y + 6, 1, ink);
+  renderer.drawLine(x + 14, y + 6, x + 14, y + 3, 1, ink);
+
+  renderer.drawLine(x + 13, y + 9, x + 12, y + 12, 1, ink);
+  renderer.drawLine(x + 12, y + 12, x + 10, y + 14, 1, ink);
+  renderer.drawLine(x + 10, y + 14, x + 6, y + 14, 1, ink);
+  renderer.drawLine(x + 6, y + 14, x + 4, y + 12, 1, ink);
+  renderer.drawLine(x + 4, y + 12, x + 3, y + 10, 1, ink);
+  renderer.drawLine(x + 3, y + 10, x + 3, y + 13, 1, ink);
+  renderer.drawLine(x + 3, y + 10, x + 6, y + 10, 1, ink);
 }
 }  // namespace
 
@@ -169,8 +217,8 @@ void WienerLinienActivity::drawBoard() {
   const bool ink = !dark;
   renderer.clearScreen(dark ? 0x00 : 0xFF);
   drawToolbar(ink);
-  const int boardWidth = renderer.getScreenWidth();
-  const int boardHeight = renderer.getScreenHeight() - TOOLBAR_HEIGHT;
+  const int boardWidth = renderer.getScreenWidth() - TOOLBAR_WIDTH;
+  const int boardHeight = renderer.getScreenHeight();
 
   const char* message = nullptr;
   switch (state) {
@@ -199,7 +247,7 @@ void WienerLinienActivity::drawBoard() {
   const auto& config = WIENER_LINIEN_STORE.getConfig();
   const wiener_board::BoardLayout layout =
       wiener_board::planColumns(std::min(config.stops.size(), WIENER_MAX_STOPS), config.activeStopIndex,
-                                config.columnCount, config.maxDepartures);
+                                config.columnCount, config.maxDepartures, config.boardRows);
   const size_t columnCount = layout.columnCount;
   if (columnCount == 0) {
     drawMessage(tr(STR_WL_NO_DEPARTURES), 8, 8, boardWidth - 16, boardHeight - 16, ink);
@@ -352,23 +400,31 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
 }
 
 void WienerLinienActivity::drawToolbar(const bool ink) {
-  const int y = renderer.getScreenHeight() - TOOLBAR_HEIGHT;
-  const int slotWidth = renderer.getScreenWidth() / 4;
-  renderer.drawLine(0, y, renderer.getScreenWidth() - 1, y, 2, ink);
+  const int x = renderer.getScreenWidth() - TOOLBAR_WIDTH;
+  const int screenHeight = renderer.getScreenHeight();
+  const int slotHeight = screenHeight / 4;
+  renderer.drawLine(x, 0, x, screenHeight - 1, 2, ink);
   const freeink::Icon settingsIcon{32, 32, 16, Settings2Icon};
 
+  const int buttonX = x + (TOOLBAR_WIDTH - BUTTON_WIDTH) / 2;
   for (int index = 0; index < 4; ++index) {
-    const int centerX = index * slotWidth + slotWidth / 2;
-    renderer.drawRect(centerX - 30, y + 6, 60, 42, 2, ink);
-    if (index > 0) renderer.drawLine(index * slotWidth, y + 7, index * slotWidth, y + TOOLBAR_HEIGHT - 7, ink);
+    const int centerY = index * slotHeight + slotHeight / 2;
+    const int buttonY = centerY - BUTTON_HEIGHT / 2;
+    renderer.drawRect(buttonX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT, 1, ink);
+    if (index > 0) {
+      renderer.drawLine(x + 4, index * slotHeight, renderer.getScreenWidth() - 5, index * slotHeight, ink);
+    }
+    // Icons are centred in the button box at half their asset size.
     if (index == 0)
-      drawIcon(renderer, settingsIcon, centerX - 16, y + 11, ink);
+      drawIconHalf(renderer, settingsIcon, buttonX + (BUTTON_WIDTH - 16) / 2, buttonY + (BUTTON_HEIGHT - 16) / 2, ink);
     else if (index == 1)
-      drawRefreshIcon(renderer, centerX - 16, y + 11, ink);
+      drawRefreshIconHalf(renderer, buttonX + (BUTTON_WIDTH - 16) / 2, buttonY + (BUTTON_HEIGHT - 16) / 2, ink);
     else if (index == 2)
-      drawIcon(renderer, icon_reader_back_24, centerX - 12, y + 15, ink);
+      drawIconHalf(renderer, icon_reader_back_24, buttonX + (BUTTON_WIDTH - 12) / 2, buttonY + (BUTTON_HEIGHT - 12) / 2,
+                   ink);
     else
-      drawIcon(renderer, icon_reader_next_24, centerX - 12, y + 15, ink);
+      drawIconHalf(renderer, icon_reader_next_24, buttonX + (BUTTON_WIDTH - 12) / 2, buttonY + (BUTTON_HEIGHT - 12) / 2,
+                   ink);
   }
 }
 

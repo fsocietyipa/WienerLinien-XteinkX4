@@ -469,6 +469,7 @@ STR_WL_RBL_HINT: "Find the RBL stop ID in the Wiener Linien open-data stop list.
 STR_WL_LINE_FILTER: "Line filter"
 STR_WL_DEPARTURE_COUNT: "Schedules per stop"
 STR_WL_STOP_COLUMNS: "Stop columns"
+STR_WL_BOARD_ROWS: "Board rows"
 STR_WL_BOARD_THEME: "Board theme"
 STR_WL_LINE_HEADER: "Line"
 STR_WL_MINUTES_HEADER: "Departure in minutes"

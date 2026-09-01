@@ -13,6 +13,9 @@ constexpr uint8_t MIN_DEPARTURES = 1;
 constexpr uint8_t MAX_DEPARTURES = static_cast<uint8_t>(WienerLinienParser::MAX_DEPARTURES);
 constexpr uint8_t MIN_COLUMNS = 1;
 constexpr uint8_t MAX_COLUMNS = static_cast<uint8_t>(wiener_board::MAX_COLUMNS);
+constexpr uint8_t MIN_BOARD_ROWS = static_cast<uint8_t>(wiener_board::MIN_TARGET_ROWS);
+constexpr uint8_t MAX_BOARD_ROWS = static_cast<uint8_t>(wiener_board::MAX_TARGET_ROWS);
+constexpr uint8_t DEFAULT_BOARD_ROWS = static_cast<uint8_t>(wiener_board::DEFAULT_TARGET_ROWS);
 constexpr uint16_t MIN_REFRESH_SECONDS = 30;
 constexpr uint16_t MAX_REFRESH_SECONDS = 300;
 }  // namespace
@@ -28,6 +31,7 @@ void WienerLinienStore::toJson(JsonDocument& doc) const {
   doc["active_stop"] = config.activeStopIndex;
   doc["max_departures"] = config.maxDepartures;
   doc["column_count"] = config.columnCount;
+  doc["board_rows"] = config.boardRows;
   doc["dark_theme"] = config.darkTheme;
   doc["refresh_seconds"] = config.refreshSeconds;
 }
@@ -55,6 +59,8 @@ bool WienerLinienStore::fromJson(JsonVariantConst doc) {
   if (config.stops.empty() || config.activeStopIndex >= config.stops.size()) config.activeStopIndex = 0;
   config.maxDepartures = std::clamp(static_cast<uint8_t>(doc["max_departures"] | 6), MIN_DEPARTURES, MAX_DEPARTURES);
   config.columnCount = std::clamp(static_cast<uint8_t>(doc["column_count"] | 1), MIN_COLUMNS, MAX_COLUMNS);
+  config.boardRows =
+      std::clamp(static_cast<uint8_t>(doc["board_rows"] | DEFAULT_BOARD_ROWS), MIN_BOARD_ROWS, MAX_BOARD_ROWS);
   config.darkTheme = doc["dark_theme"] | true;
   config.refreshSeconds =
       std::clamp(static_cast<uint16_t>(doc["refresh_seconds"] | 60), MIN_REFRESH_SECONDS, MAX_REFRESH_SECONDS);
@@ -107,6 +113,11 @@ bool WienerLinienStore::setMaxDepartures(const uint8_t value) {
 
 bool WienerLinienStore::setColumnCount(const uint8_t value) {
   config.columnCount = std::clamp(value, MIN_COLUMNS, MAX_COLUMNS);
+  return saveToFile();
+}
+
+bool WienerLinienStore::setBoardRows(const uint8_t value) {
+  config.boardRows = std::clamp(value, MIN_BOARD_ROWS, MAX_BOARD_ROWS);
   return saveToFile();
 }
 

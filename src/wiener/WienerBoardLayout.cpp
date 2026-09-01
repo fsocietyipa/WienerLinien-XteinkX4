@@ -5,14 +5,15 @@
 namespace wiener_board {
 
 BoardLayout planColumns(const size_t stopCount, const size_t activeStopIndex, const size_t configuredColumns,
-                        const size_t rowsPerStop) {
+                        const size_t rowsPerStop, const size_t targetRows) {
   BoardLayout layout;
   if (stopCount == 0 || configuredColumns == 0) return layout;
 
   const size_t rows = std::max<size_t>(1, rowsPerStop);
+  const size_t target = std::clamp(targetRows, MIN_TARGET_ROWS, MAX_TARGET_ROWS);
   // Whole stops only: enough of them to reach the target, never a stop split
   // across a column boundary.
-  const size_t sectionsPerColumn = std::min(MAX_SECTIONS_PER_COLUMN, (TARGET_ROWS_PER_COLUMN + rows - 1) / rows);
+  const size_t sectionsPerColumn = std::min(MAX_SECTIONS_PER_COLUMN, (target + rows - 1) / rows);
   const size_t availableColumns = std::min({configuredColumns, MAX_COLUMNS, stopCount});
 
   const size_t totalSections = std::min(stopCount, availableColumns * sectionsPerColumn);
@@ -29,9 +30,9 @@ BoardLayout planColumns(const size_t stopCount, const size_t activeStopIndex, co
   size_t consumed = 0;
   for (size_t column = 0; column < layout.columnCount; ++column) {
     const size_t count = std::min(base + (column < extra ? 1 : 0), MAX_SECTIONS_PER_COLUMN);
-    ColumnLayout& target = layout.columns[column];
+    ColumnLayout& entry = layout.columns[column];
     for (size_t index = 0; index < count; ++index) {
-      target.stopIndices[target.sectionCount++] = (activeStopIndex + consumed) % stopCount;
+      entry.stopIndices[entry.sectionCount++] = (activeStopIndex + consumed) % stopCount;
       ++consumed;
     }
   }
