@@ -92,6 +92,10 @@ WienerLinienActivity::WienerLinienActivity(GfxRenderer& renderer, MappedInputMan
 
 void WienerLinienActivity::setBoardOrientation() {
   renderer.setOrientation(GfxRenderer::Orientation::LandscapeCounterClockwise);
+  // Called whenever the board takes the screen back — on entry and on every
+  // return from Settings or Wi-Fi selection. Those screens paint portrait, so
+  // the next board paint must clear their residue rather than draw over it.
+  repaintsUntilCleanRefresh = 0;
 }
 
 void WienerLinienActivity::onEnter() {
@@ -152,7 +156,12 @@ void WienerLinienActivity::loop() {
 
 void WienerLinienActivity::render(RenderLock&&) {
   drawBoard();
-  renderer.displayBuffer();
+  // The first paint after entering (including the return from Settings) clears
+  // whatever the previous screen left behind; after that a clean waveform every
+  // REPAINTS_PER_CLEAN_REFRESH paints keeps residue from accumulating.
+  const bool clean = repaintsUntilCleanRefresh <= 0;
+  renderer.displayBuffer(clean ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+  repaintsUntilCleanRefresh = clean ? REPAINTS_PER_CLEAN_REFRESH : repaintsUntilCleanRefresh - 1;
 }
 
 void WienerLinienActivity::drawBoard() {
@@ -367,6 +376,10 @@ bool WienerLinienActivity::hasScheduleData() const {
 void WienerLinienActivity::launchWifiSelection() {
   state = State::WIFI_SELECTION;
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  // The incoming screen paints with a fast refresh it cannot upgrade itself,
+  // and this is a 90-degree rotation, so every pixel changes. Hand its first
+  // paint a ghost-clearing waveform.
+  renderer.promoteNextRefresh(HalDisplay::HALF_REFRESH);
   auto activity = makeUniqueNoThrow<WifiSelectionActivity>(renderer, mappedInput);
   if (!activity) {
     setBoardOrientation();
@@ -391,6 +404,7 @@ void WienerLinienActivity::launchWifiSelection() {
 
 void WienerLinienActivity::launchSettings() {
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+  renderer.promoteNextRefresh(HalDisplay::HALF_REFRESH);
   auto activity = makeUniqueNoThrow<WienerLinienSettingsActivity>(renderer, mappedInput);
   if (!activity) {
     setBoardOrientation();

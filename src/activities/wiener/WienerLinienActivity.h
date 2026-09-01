@@ -28,11 +28,18 @@ class WienerLinienActivity final : public Activity {
     const char* message = nullptr;
   };
 
+  // Repaints between ghost-clearing waveforms. The board repaints on a timer
+  // for as long as the device is on, so fast refreshes would otherwise stack
+  // residue indefinitely; the reader solves the same problem with a countdown
+  // (ReaderUtils::displayWithRefreshCycle). Zero means the next paint is clean.
+  static constexpr int REPAINTS_PER_CLEAN_REFRESH = 10;
+
   State state = State::CONFIG_REQUIRED;
   std::array<StopColumn, MAX_COLUMNS> columns{};
   size_t visibleColumnCount = 0;
   const char* errorMessage = nullptr;
   unsigned long nextRefreshAt = 0;
+  int repaintsUntilCleanRefresh = 0;
 
   void checkAndConnectWifi();
   void launchWifiSelection();
