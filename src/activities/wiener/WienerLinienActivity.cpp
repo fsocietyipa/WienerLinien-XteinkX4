@@ -21,6 +21,7 @@
 #include "components/icons/readerToolbarIcons.h"
 #include "components/icons/settings2.h"
 #include "network/HttpDownloader.h"
+#include "wiener/WienerBoardIcons.h"
 #include "wiener/WienerDisplayFont.h"
 
 namespace {
@@ -284,6 +285,49 @@ void WienerLinienActivity::drawBoard() {
   }
 }
 
+void WienerLinienActivity::drawLineBadge(const wiener_icons::DotIcon& badge, const char* number, const int x,
+                                         const int y, const int width, const int height, const bool ink) {
+  // Two layouts are possible and the wider number decides between them: side by
+  // side reads like the platform signs and wins for U1-U6, but a two-digit
+  // S-Bahn number ("S45") would have to shrink to fit beside the badge, so
+  // stacking the badge above the number keeps it larger. Pick whichever gives
+  // the bigger dot scale, preferring side by side on a tie.
+  const int glyphHeight = 7;
+  int inlineScale = 0;
+  int stackedScale = 0;
+  for (int scale = 8; scale >= 1; --scale) {
+    const int badgeWidth = wiener_icons::width(badge, scale);
+    if (inlineScale == 0 && badgeWidth + scale + WienerDisplayFont::textWidth(number, scale) <= width &&
+        glyphHeight * scale <= height) {
+      inlineScale = scale;
+    }
+    if (stackedScale == 0 && std::max(badgeWidth, WienerDisplayFont::textWidth(number, scale)) <= width &&
+        glyphHeight * scale * 2 + scale <= height) {
+      stackedScale = scale;
+    }
+    if (inlineScale != 0 && stackedScale != 0) break;
+  }
+
+  if (inlineScale == 0 && stackedScale == 0) return;
+
+  if (inlineScale >= stackedScale) {
+    const int badgeWidth = wiener_icons::width(badge, inlineScale);
+    const int used = badgeWidth + inlineScale + WienerDisplayFont::textWidth(number, inlineScale);
+    const int left = x + std::max(0, (width - used) / 2);
+    const int top = y + std::max(0, (height - glyphHeight * inlineScale) / 2);
+    wiener_icons::draw(renderer, badge, left, top, inlineScale, ink);
+    WienerDisplayFont::drawText(renderer, left + badgeWidth + inlineScale, top, number, inlineScale, ink);
+    return;
+  }
+
+  const int blockHeight = glyphHeight * stackedScale * 2 + stackedScale;
+  const int top = y + std::max(0, (height - blockHeight) / 2);
+  const int badgeWidth = wiener_icons::width(badge, stackedScale);
+  wiener_icons::draw(renderer, badge, x + std::max(0, (width - badgeWidth) / 2), top, stackedScale, ink);
+  WienerDisplayFont::drawCentered(renderer, x, top + glyphHeight * stackedScale + stackedScale, width,
+                                  glyphHeight * stackedScale, number, stackedScale, ink);
+}
+
 void WienerLinienActivity::drawMessage(const char* message, const int x, const int y, const int width, const int height,
                                        const bool ink) {
   char normalized[160]{};
@@ -373,11 +417,33 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
     const auto& departure = schedule.departures[index];
     char line[20]{};
     WienerDisplayFont::normalize(departure.line, line, sizeof(line));
-    trimToWidth(line, lineWidth - 8);
-    const int lineScale = WienerDisplayFont::fitScale(line, lineWidth - 8, rowHeight - 6, 8);
-    WienerDisplayFont::drawCentered(renderer, x + 4, rowTop + 3, lineWidth - 8, rowHeight - 6, line, lineScale, ink);
+    const int lineCellWidth = lineWidth - 8;
+    const int lineCellHeight = rowHeight - 6;
+    if (const auto* badge = wiener_icons::badgeForLine(line)) {
+      drawLineBadge(*badge, line + 1, x + 4, rowTop + 3, lineCellWidth, lineCellHeight, ink);
+    } else {
+      trimToWidth(line, lineCellWidth);
+      const int lineScale = WienerDisplayFont::fitScale(line, lineCellWidth, lineCellHeight, 8);
+      WienerDisplayFont::drawCentered(renderer, x + 4, rowTop + 3, lineCellWidth, lineCellHeight, line, lineScale, ink);
+    }
 
-    const int destinationWidth = minuteLeft - lineRight - 10;
+    // A low-floor departure gets the wheelchair at the head of the destination
+    // cell, which is where the platform displays put it; the text area shrinks
+    // by exactly what the pictogram takes.
+    int destinationLeft = lineRight + 5;
+    int destinationWidth = minuteLeft - lineRight - 10;
+    if (departure.barrierFree) {
+      const auto& icon = wiener_icons::wheelchair();
+      const int iconScale = std::clamp(rowHeight / 30, 1, 3);
+      const int iconWidth = wiener_icons::width(icon, iconScale);
+      const int iconHeight = wiener_icons::height(icon, iconScale);
+      if (iconWidth + 8 < destinationWidth) {
+        wiener_icons::draw(renderer, icon, destinationLeft, rowTop + std::max(0, (rowHeight - iconHeight) / 2),
+                           iconScale, ink);
+        destinationLeft += iconWidth + 4;
+        destinationWidth -= iconWidth + 4;
+      }
+    }
     char destination[112]{};
     char firstLine[112]{};
     char secondLine[112]{};
@@ -394,14 +460,14 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
       trimToWidth(secondLine, destinationWidth, splitScale);
       const int blockHeight = splitScale * 15;
       const int textTop = rowTop + std::max(0, (rowHeight - blockHeight) / 2);
-      WienerDisplayFont::drawCentered(renderer, lineRight + 5, textTop, destinationWidth, 7 * splitScale, firstLine,
+      WienerDisplayFont::drawCentered(renderer, destinationLeft, textTop, destinationWidth, 7 * splitScale, firstLine,
                                       splitScale, ink);
-      WienerDisplayFont::drawCentered(renderer, lineRight + 5, textTop + 8 * splitScale, destinationWidth,
+      WienerDisplayFont::drawCentered(renderer, destinationLeft, textTop + 8 * splitScale, destinationWidth,
                                       7 * splitScale, secondLine, splitScale, ink);
     } else {
       trimToWidth(destination, destinationWidth, singleScale);
-      WienerDisplayFont::drawCentered(renderer, lineRight + 5, rowTop + 3, destinationWidth, rowHeight - 6, destination,
-                                      singleScale, ink);
+      WienerDisplayFont::drawCentered(renderer, destinationLeft, rowTop + 3, destinationWidth, rowHeight - 6,
+                                      destination, singleScale, ink);
     }
 
     if (departure.countdown >= 0 && departure.countdown <= 1) {

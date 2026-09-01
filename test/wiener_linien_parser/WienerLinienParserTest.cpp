@@ -76,3 +76,62 @@ TEST(WienerLinienParser, RetainsEarliestDeparturesAtLimit) {
   EXPECT_EQ(parser.getDeparture(0).countdown, 3);
   EXPECT_EQ(parser.getDeparture(1).countdown, 5);
 }
+
+// The monitor feed marks accessibility on the line and, for a run that
+// differs, again on that departure's own vehicle object.
+TEST(WienerLinienParser, ReadsBarrierFreeFromTheLine) {
+  constexpr const char* json = R"({
+    "data": {"monitors": [{
+      "locationStop": {"properties": {"title": "Test"}},
+      "lines": [{
+        "name": "U2", "towards": "Seestadt", "barrierFree": true,
+        "departures": {"departure": [
+          {"departureTime": {"countdown": 4}},
+          {"departureTime": {"countdown": 9}}
+        ]}
+      }]
+    }]}
+  })";
+  WienerLinienParser parser("", 6);
+  parser.feed(json, strlen(json));
+  parser.finalize();
+  ASSERT_EQ(parser.getDepartureCount(), 2u);
+  EXPECT_TRUE(parser.getDeparture(0).barrierFree);
+  EXPECT_TRUE(parser.getDeparture(1).barrierFree);
+}
+
+TEST(WienerLinienParser, VehicleOverridesTheLineAccessibilityFlag) {
+  constexpr const char* json = R"({
+    "data": {"monitors": [{
+      "locationStop": {"properties": {"title": "Test"}},
+      "lines": [{
+        "name": "1", "towards": "Prater", "barrierFree": true,
+        "departures": {"departure": [
+          {"departureTime": {"countdown": 2}, "vehicle": {"name": "1", "towards": "Prater", "barrierFree": false}},
+          {"departureTime": {"countdown": 8}}
+        ]}
+      }]
+    }]}
+  })";
+  WienerLinienParser parser("", 6);
+  parser.feed(json, strlen(json));
+  parser.finalize();
+  ASSERT_EQ(parser.getDepartureCount(), 2u);
+  EXPECT_FALSE(parser.getDeparture(0).barrierFree);
+  EXPECT_TRUE(parser.getDeparture(1).barrierFree);
+}
+
+TEST(WienerLinienParser, AccessibilityDefaultsToFalseWhenAbsent) {
+  constexpr const char* json = R"({
+    "data": {"monitors": [{
+      "locationStop": {"properties": {"title": "Test"}},
+      "lines": [{"name": "D", "towards": "Nussdorf",
+        "departures": {"departure": [{"departureTime": {"countdown": 3}}]}}]
+    }]}
+  })";
+  WienerLinienParser parser("", 6);
+  parser.feed(json, strlen(json));
+  parser.finalize();
+  ASSERT_EQ(parser.getDepartureCount(), 1u);
+  EXPECT_FALSE(parser.getDeparture(0).barrierFree);
+}

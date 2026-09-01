@@ -5,6 +5,7 @@
 
 #include "WienerLinienStore.h"
 #include "activities/Activity.h"
+#include "wiener/WienerBoardIcons.h"
 #include "wiener/WienerBoardLayout.h"
 #include "wiener/WienerLinienParser.h"
 
@@ -56,6 +57,9 @@ class WienerLinienActivity final : public Activity {
   // and its departure rows.
   void drawSection(const StopSchedule& schedule, int x, int y, int width, int height, uint8_t rowCount, bool ink,
                    bool drawLabels);
+  // Rapid-transit badge plus its line number, laid out in the line cell.
+  void drawLineBadge(const wiener_icons::DotIcon& badge, const char* number, int x, int y, int width, int height,
+                     bool ink);
   void drawMessage(const char* message, int x, int y, int width, int height, bool ink);
   void drawToolbar(bool ink);
   bool reconnectWifi();

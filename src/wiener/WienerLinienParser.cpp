@@ -62,12 +62,14 @@ void WienerLinienParser::pushContext(const Context context, const bool isArray) 
   if (context == Context::LINE) {
     lineName[0] = '\0';
     lineDestination[0] = '\0';
+    lineBarrierFree = false;
   } else if (context == Context::DEPARTURE) {
     currentDeparture = {};
     safeCopy(currentDeparture.line, sizeof(currentDeparture.line), lineName, strlen(lineName));
     safeCopy(currentDeparture.destination, sizeof(currentDeparture.destination), lineDestination,
              strlen(lineDestination));
     currentDeparture.countdown = -1;
+    currentDeparture.barrierFree = lineBarrierFree;
   }
 }
 
@@ -145,6 +147,8 @@ void WienerLinienParser::sOnKey(void* ctx, const char* key, const size_t len) {
     self->lastKey = Key::COUNTDOWN;
   else if (keyEquals(key, len, "vehicle"))
     self->lastKey = Key::VEHICLE;
+  else if (keyEquals(key, len, "barrierFree"))
+    self->lastKey = Key::BARRIER_FREE;
   else
     self->lastKey = Key::NONE;
 }
@@ -175,7 +179,20 @@ void WienerLinienParser::sOnNumber(void* ctx, const char* value, size_t) {
   self->lastKey = Key::NONE;
 }
 
-void WienerLinienParser::sOnBool(void* ctx, bool) { static_cast<WienerLinienParser*>(ctx)->lastKey = Key::NONE; }
+void WienerLinienParser::sOnBool(void* ctx, const bool value) {
+  auto* self = static_cast<WienerLinienParser*>(ctx);
+  const Context context = self->currentContext();
+  if (self->lastKey == Key::BARRIER_FREE) {
+    // The line-level flag seeds every departure; a vehicle object overrides it
+    // for that run only.
+    if (context == Context::LINE) {
+      self->lineBarrierFree = value;
+    } else if (context == Context::VEHICLE) {
+      self->currentDeparture.barrierFree = value;
+    }
+  }
+  self->lastKey = Key::NONE;
+}
 void WienerLinienParser::sOnNull(void* ctx) { static_cast<WienerLinienParser*>(ctx)->lastKey = Key::NONE; }
 
 void WienerLinienParser::sOnObjectStart(void* ctx) {

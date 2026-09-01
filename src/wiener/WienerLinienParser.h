@@ -10,6 +10,9 @@ struct WienerDeparture {
   char line[16]{};
   char destination[112]{};
   int16_t countdown = -1;
+  // Low-floor vehicle. The monitor feed reports it per line and, when a run
+  // differs, again on that departure's vehicle object.
+  bool barrierFree = false;
 };
 
 class WienerLinienParser {
@@ -62,6 +65,7 @@ class WienerLinienParser {
     DEPARTURE_TIME,
     COUNTDOWN,
     VEHICLE,
+    BARRIER_FREE,
   };
 
   struct Frame {
@@ -94,6 +98,7 @@ class WienerLinienParser {
   char stopTitle[112]{};
   char lineName[16]{};
   char lineDestination[112]{};
+  bool lineBarrierFree = false;
   WienerDeparture currentDeparture{};
   std::array<WienerDeparture, MAX_DEPARTURES> departures{};
   size_t departureCount = 0;
