@@ -7,6 +7,7 @@
 #include <Logging.h>
 #include <Memory.h>
 #include <WiFi.h>
+#include <esp_random.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include "components/icons/settings2.h"
 #include "network/HttpDownloader.h"
 #include "wiener/WienerBoardIcons.h"
+#include "wiener/WienerBoardText.h"
 #include "wiener/WienerDisplayFont.h"
 
 namespace {
@@ -53,15 +55,28 @@ void trimToWidth(char* text, const int width, const int scale = 1) {
   }
 }
 
+// A departure due within a minute. The platform displays blink the pair of
+// squares between the two diagonals to mark it as imminent; e-ink cannot blink,
+// so each repaint picks a diagonal at random and the pair jumps from one
+// refresh to the next instead.
 void drawArrivalIndicator(const GfxRenderer& renderer, const int x, const int y, const int width, const int height,
                           const bool ink) {
   const int square = std::max(4, std::min(width, height) / 5);
   const int gap = std::max(2, square / 2);
-  const int totalWidth = square * 2 + gap;
-  const int left = x + (width - totalWidth) / 2;
-  const int top = y + (height - (square * 2 + gap)) / 2;
-  renderer.fillRect(left, top, square, square, ink);
-  renderer.fillRect(left + square + gap, top + square + gap, square, square, ink);
+  const int block = square * 2 + gap;
+  const int left = x + (width - block) / 2;
+  const int top = y + (height - block) / 2;
+  const int far = square + gap;
+
+  // Hardware RNG: Arduino's random() would repeat the same sequence every boot
+  // unless seeded, which would make the pair settle into a fixed pattern.
+  if ((esp_random() & 1U) != 0U) {
+    renderer.fillRect(left, top, square, square, ink);
+    renderer.fillRect(left + far, top + far, square, square, ink);
+  } else {
+    renderer.fillRect(left + far, top, square, square, ink);
+    renderer.fillRect(left, top + far, square, square, ink);
+  }
 }
 
 void drawIcon(const GfxRenderer& renderer, const freeink::Icon& icon, const int x, const int y, const bool ink) {
@@ -285,49 +300,6 @@ void WienerLinienActivity::drawBoard() {
   }
 }
 
-void WienerLinienActivity::drawLineBadge(const wiener_icons::DotIcon& badge, const char* number, const int x,
-                                         const int y, const int width, const int height, const bool ink) {
-  // Two layouts are possible and the wider number decides between them: side by
-  // side reads like the platform signs and wins for U1-U6, but a two-digit
-  // S-Bahn number ("S45") would have to shrink to fit beside the badge, so
-  // stacking the badge above the number keeps it larger. Pick whichever gives
-  // the bigger dot scale, preferring side by side on a tie.
-  const int glyphHeight = 7;
-  int inlineScale = 0;
-  int stackedScale = 0;
-  for (int scale = 8; scale >= 1; --scale) {
-    const int badgeWidth = wiener_icons::width(badge, scale);
-    if (inlineScale == 0 && badgeWidth + scale + WienerDisplayFont::textWidth(number, scale) <= width &&
-        glyphHeight * scale <= height) {
-      inlineScale = scale;
-    }
-    if (stackedScale == 0 && std::max(badgeWidth, WienerDisplayFont::textWidth(number, scale)) <= width &&
-        glyphHeight * scale * 2 + scale <= height) {
-      stackedScale = scale;
-    }
-    if (inlineScale != 0 && stackedScale != 0) break;
-  }
-
-  if (inlineScale == 0 && stackedScale == 0) return;
-
-  if (inlineScale >= stackedScale) {
-    const int badgeWidth = wiener_icons::width(badge, inlineScale);
-    const int used = badgeWidth + inlineScale + WienerDisplayFont::textWidth(number, inlineScale);
-    const int left = x + std::max(0, (width - used) / 2);
-    const int top = y + std::max(0, (height - glyphHeight * inlineScale) / 2);
-    wiener_icons::draw(renderer, badge, left, top, inlineScale, ink);
-    WienerDisplayFont::drawText(renderer, left + badgeWidth + inlineScale, top, number, inlineScale, ink);
-    return;
-  }
-
-  const int blockHeight = glyphHeight * stackedScale * 2 + stackedScale;
-  const int top = y + std::max(0, (height - blockHeight) / 2);
-  const int badgeWidth = wiener_icons::width(badge, stackedScale);
-  wiener_icons::draw(renderer, badge, x + std::max(0, (width - badgeWidth) / 2), top, stackedScale, ink);
-  WienerDisplayFont::drawCentered(renderer, x, top + glyphHeight * stackedScale + stackedScale, width,
-                                  glyphHeight * stackedScale, number, stackedScale, ink);
-}
-
 void WienerLinienActivity::drawMessage(const char* message, const int x, const int y, const int width, const int height,
                                        const bool ink) {
   char normalized[160]{};
@@ -367,9 +339,9 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
                                        const bool drawLabels) {
   char title[112]{};
   WienerDisplayFont::normalize(schedule.title[0] ? schedule.title : tr(STR_WL_TITLE), title, sizeof(title));
-  trimToWidth(title, width - 12);
-  const int titleScale = WienerDisplayFont::fitScale(title, width - 12, HEADER_HEIGHT - 8, 3);
-  WienerDisplayFont::drawCentered(renderer, x + 6, y + 3, width - 12, HEADER_HEIGHT - 6, title, titleScale, ink);
+  const int titleScale = WienerBoardText::fitScale(title, width - 12, HEADER_HEIGHT - 8, 3);
+  WienerBoardText::trimToWidth(title, width - 12, titleScale);
+  WienerBoardText::drawCentered(renderer, x + 6, y + 3, width - 12, HEADER_HEIGHT - 6, title, titleScale, ink);
   renderer.drawLine(x, y + HEADER_HEIGHT, x + width - 1, y + HEADER_HEIGHT, ink);
 
   // The Line/Min labels describe columns that are identical in every section,
@@ -419,13 +391,9 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
     WienerDisplayFont::normalize(departure.line, line, sizeof(line));
     const int lineCellWidth = lineWidth - 8;
     const int lineCellHeight = rowHeight - 6;
-    if (const auto* badge = wiener_icons::badgeForLine(line)) {
-      drawLineBadge(*badge, line + 1, x + 4, rowTop + 3, lineCellWidth, lineCellHeight, ink);
-    } else {
-      trimToWidth(line, lineCellWidth);
-      const int lineScale = WienerDisplayFont::fitScale(line, lineCellWidth, lineCellHeight, 8);
-      WienerDisplayFont::drawCentered(renderer, x + 4, rowTop + 3, lineCellWidth, lineCellHeight, line, lineScale, ink);
-    }
+    trimToWidth(line, lineCellWidth);
+    const int lineScale = WienerDisplayFont::fitScale(line, lineCellWidth, lineCellHeight, 8);
+    WienerDisplayFont::drawCentered(renderer, x + 4, rowTop + 3, lineCellWidth, lineCellHeight, line, lineScale, ink);
 
     // A low-floor departure gets the wheelchair at the head of the destination
     // cell, which is where the platform displays put it; the text area shrinks
@@ -448,26 +416,26 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
     char firstLine[112]{};
     char secondLine[112]{};
     WienerDisplayFont::normalize(departure.destination, destination, sizeof(destination));
-    const int singleScale = WienerDisplayFont::fitScale(destination, destinationWidth, rowHeight - 6, 5);
+    const int singleScale = WienerBoardText::fitScale(destination, destinationWidth, rowHeight - 6, 5);
     WienerDisplayFont::splitBalanced(destination, firstLine, sizeof(firstLine), secondLine, sizeof(secondLine));
     int splitScale = 0;
     if (secondLine[0] != '\0' && rowHeight >= 17) {
-      splitScale = std::min(WienerDisplayFont::fitScale(firstLine, destinationWidth, (rowHeight - 3) / 2, 5),
-                            WienerDisplayFont::fitScale(secondLine, destinationWidth, (rowHeight - 3) / 2, 5));
+      splitScale = std::min(WienerBoardText::fitScale(firstLine, destinationWidth, (rowHeight - 3) / 2, 5),
+                            WienerBoardText::fitScale(secondLine, destinationWidth, (rowHeight - 3) / 2, 5));
     }
     if (splitScale >= singleScale && splitScale > 0) {
-      trimToWidth(firstLine, destinationWidth, splitScale);
-      trimToWidth(secondLine, destinationWidth, splitScale);
+      WienerBoardText::trimToWidth(firstLine, destinationWidth, splitScale);
+      WienerBoardText::trimToWidth(secondLine, destinationWidth, splitScale);
       const int blockHeight = splitScale * 15;
       const int textTop = rowTop + std::max(0, (rowHeight - blockHeight) / 2);
-      WienerDisplayFont::drawCentered(renderer, destinationLeft, textTop, destinationWidth, 7 * splitScale, firstLine,
-                                      splitScale, ink);
-      WienerDisplayFont::drawCentered(renderer, destinationLeft, textTop + 8 * splitScale, destinationWidth,
-                                      7 * splitScale, secondLine, splitScale, ink);
+      WienerBoardText::drawCentered(renderer, destinationLeft, textTop, destinationWidth, 7 * splitScale, firstLine,
+                                    splitScale, ink);
+      WienerBoardText::drawCentered(renderer, destinationLeft, textTop + 8 * splitScale, destinationWidth,
+                                    7 * splitScale, secondLine, splitScale, ink);
     } else {
-      trimToWidth(destination, destinationWidth, singleScale);
-      WienerDisplayFont::drawCentered(renderer, destinationLeft, rowTop + 3, destinationWidth, rowHeight - 6,
-                                      destination, singleScale, ink);
+      WienerBoardText::trimToWidth(destination, destinationWidth, singleScale);
+      WienerBoardText::drawCentered(renderer, destinationLeft, rowTop + 3, destinationWidth, rowHeight - 6, destination,
+                                    singleScale, ink);
     }
 
     if (departure.countdown >= 0 && departure.countdown <= 1) {

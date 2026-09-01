@@ -19,10 +19,11 @@ struct DotIcon {
   const uint16_t* rows;
 };
 
-// The badge for a line name, or nullptr when the line does not carry one.
-// U-Bahn and S-Bahn lines are a letter followed by digits ("U2", "S45");
-// trams and buses ("D", "13A", "N25") keep plain text.
-const DotIcon* badgeForLine(const char* line);
+// Interchange markers, for the bare letters inside a stop or destination name.
+// The platform displays ring these rather than blocking them in, which is what
+// tells an interchange note apart from a line number.
+const DotIcon& ubahnInterchange();
+const DotIcon& sbahnInterchange();
 
 // Accessibility pictogram, shown against a low-floor departure.
 const DotIcon& wheelchair();

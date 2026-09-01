@@ -7,98 +7,98 @@
 namespace wiener_icons {
 namespace {
 
-// U-Bahn badge: the letter is knocked out of a solid block, matching the
-// white-on-blue line logo once the panel polarity is applied.
+// Interchange marker for a stop name, e.g. "Praterstern S U". Filled disc with
+// the letter knocked out, the way the platform signs carry it.
 //
-//   #######
-//   #.###.#
-//   #.###.#
-//   #.###.#
-//   #.###.#
-//   ##...##
-//   #######
-constexpr uint16_t UBAHN_ROWS[] = {
-    0x007F,  // #######
-    0x005D,  // #.###.#
-    0x005D,  // #.###.#
-    0x005D,  // #.###.#
-    0x005D,  // #.###.#
-    0x0063,  // ##...##
-    0x007F,  // #######
+//   ..#####..
+//   .#######.
+//   ###.#.###
+//   ###.#.###
+//   ###.#.###
+//   ###.#.###
+//   ###...###
+//   .#######.
+//   ..#####..
+constexpr uint16_t UBAHN_INTERCHANGE_ROWS[] = {
+    0x007C,  // ..#####..
+    0x00FE,  // .#######.
+    0x01D7,  // ###.#.###
+    0x01D7,  // ###.#.###
+    0x01D7,  // ###.#.###
+    0x01D7,  // ###.#.###
+    0x01C7,  // ###...###
+    0x00FE,  // .#######.
+    0x007C,  // ..#####..
 };
-constexpr DotIcon UBAHN{7, 7, UBAHN_ROWS};
+constexpr DotIcon UBAHN_INTERCHANGE{9, 9, UBAHN_INTERCHANGE_ROWS};
 
-// S-Bahn badge, same treatment as the U-Bahn one.
+// S-Bahn interchange marker, same treatment.
 //
-//   #######
-//   #.....#
-//   #.#####
-//   #.....#
-//   #####.#
-//   #.....#
-//   #######
-constexpr uint16_t SBAHN_ROWS[] = {
-    0x007F,  // #######
-    0x0041,  // #.....#
-    0x005F,  // #.#####
-    0x0041,  // #.....#
-    0x007D,  // #####.#
-    0x0041,  // #.....#
-    0x007F,  // #######
+//   ..#####..
+//   .#######.
+//   ###...###
+//   ##.######
+//   ###...###
+//   ######.##
+//   ###...###
+//   .#######.
+//   ..#####..
+constexpr uint16_t SBAHN_INTERCHANGE_ROWS[] = {
+    0x007C,  // ..#####..
+    0x00FE,  // .#######.
+    0x01C7,  // ###...###
+    0x01BF,  // ##.######
+    0x01C7,  // ###...###
+    0x01FB,  // ######.##
+    0x01C7,  // ###...###
+    0x00FE,  // .#######.
+    0x007C,  // ..#####..
 };
-constexpr DotIcon SBAHN{7, 7, SBAHN_ROWS};
-
-// Accessibility pictogram shown against a low-floor departure. The wheel is
-// left open along its top edge so the seat reads as a separate stroke instead
-// of merging into the rim at this size.
+constexpr DotIcon SBAHN_INTERCHANGE{9, 9, SBAHN_INTERCHANGE_ROWS};
+// Accessibility pictogram shown against a low-floor departure, traced from a
+// drawn reference: the figure faces left, the arm crosses the back to the rim,
+// and the wheel is left open at the upper left so the seat and arm read as
+// separate strokes instead of merging into it.
 //
-//   .....##........
-//   .....##........
-//   ...............
-//   ....###........
-//   ....##.#####...
-//   ....##.....#...
-//   ....##.........
-//   ...#######.....
-//   ..##.....##....
-//   ..#.......#.##.
-//   .##.......##.#.
-//   .#.........#.#.
-//   .##.......##...
-//   ..#########....
-//   ...............
+//   ........###.....
+//   ........###.....
+//   .........#......
+//   .........#......
+//   .....#########..
+//   .....#...#....#.
+//   .........#....#.
+//   ....######.....#
+//   ...##..........#
+//   ...##..........#
+//   ..#.#..........#
+//   .#...#........#.
+//   #....#........#.
+//   ......##....##..
+//   ........####....
 constexpr uint16_t WHEELCHAIR_ROWS[] = {
-    0x0300,  // .....##........
-    0x0300,  // .....##........
-    0x0000,  // ...............
-    0x0700,  // ....###........
-    0x06F8,  // ....##.#####...
-    0x0608,  // ....##.....#...
-    0x0600,  // ....##.........
-    0x0FE0,  // ...#######.....
-    0x1830,  // ..##.....##....
-    0x1016,  // ..#.......#.##.
-    0x301A,  // .##.......##.#.
-    0x200A,  // .#.........#.#.
-    0x3018,  // .##.......##...
-    0x1FF0,  // ..#########....
-    0x0000,  // ...............
+    0x00E0,  // ........###.....
+    0x00E0,  // ........###.....
+    0x0040,  // .........#......
+    0x0040,  // .........#......
+    0x07FC,  // .....#########..
+    0x0442,  // .....#...#....#.
+    0x0042,  // .........#....#.
+    0x0FC1,  // ....######.....#
+    0x1801,  // ...##..........#
+    0x1801,  // ...##..........#
+    0x2801,  // ..#.#..........#
+    0x4402,  // .#...#........#.
+    0x8402,  // #....#........#.
+    0x030C,  // ......##....##..
+    0x00F0,  // ........####....
 };
-constexpr DotIcon WHEELCHAIR{15, 15, WHEELCHAIR_ROWS};
+constexpr DotIcon WHEELCHAIR{16, 15, WHEELCHAIR_ROWS};
 
 }  // namespace
 
-const DotIcon* badgeForLine(const char* line) {
-  if (line == nullptr) return nullptr;
-  if (line[0] != 'U' && line[0] != 'S') return nullptr;
-  // A bare letter, or anything with a further letter in it, is a tram or bus
-  // line rather than a rapid-transit one.
-  if (line[1] == '\0') return nullptr;
-  for (const char* c = line + 1; *c != '\0'; ++c) {
-    if (*c < '0' || *c > '9') return nullptr;
-  }
-  return line[0] == 'U' ? &UBAHN : &SBAHN;
-}
+const DotIcon& ubahnInterchange() { return UBAHN_INTERCHANGE; }
+
+const DotIcon& sbahnInterchange() { return SBAHN_INTERCHANGE; }
 
 const DotIcon& wheelchair() { return WHEELCHAIR; }
 

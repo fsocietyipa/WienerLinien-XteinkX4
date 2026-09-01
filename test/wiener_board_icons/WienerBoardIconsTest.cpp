@@ -4,40 +4,29 @@
 
 namespace {
 
-using wiener_icons::badgeForLine;
-
-TEST(WienerBoardIconsTest, BadgesRapidTransitLines) {
-  EXPECT_NE(badgeForLine("U1"), nullptr);
-  EXPECT_NE(badgeForLine("U6"), nullptr);
-  EXPECT_NE(badgeForLine("S1"), nullptr);
-  EXPECT_NE(badgeForLine("S45"), nullptr);
+TEST(WienerBoardIconsTest, UAndSUseDifferentMarkers) {
+  EXPECT_NE(&wiener_icons::ubahnInterchange(), &wiener_icons::sbahnInterchange());
 }
 
-TEST(WienerBoardIconsTest, UAndSGetDifferentBadges) { EXPECT_NE(badgeForLine("U2"), badgeForLine("S2")); }
-
-// Trams and buses keep plain text: "D" and "O" are tram lines, "13A" and "N25"
-// are buses, and none of them carry a rapid-transit badge.
-TEST(WienerBoardIconsTest, LeavesTramAndBusLinesAlone) {
-  EXPECT_EQ(badgeForLine("1"), nullptr);
-  EXPECT_EQ(badgeForLine("D"), nullptr);
-  EXPECT_EQ(badgeForLine("O"), nullptr);
-  EXPECT_EQ(badgeForLine("13A"), nullptr);
-  EXPECT_EQ(badgeForLine("N25"), nullptr);
-  EXPECT_EQ(badgeForLine("VRT"), nullptr);
+TEST(WienerBoardIconsTest, MarkersShareOneBoxSoTheyAlignInText) {
+  const auto& u = wiener_icons::ubahnInterchange();
+  const auto& s = wiener_icons::sbahnInterchange();
+  EXPECT_EQ(u.width, s.width);
+  EXPECT_EQ(u.height, s.height);
 }
 
-// A bare letter is not a line number, and a letter after the digits means a
-// bus variant rather than an S-Bahn branch.
-TEST(WienerBoardIconsTest, RequiresDigitsAfterTheLetter) {
-  EXPECT_EQ(badgeForLine("U"), nullptr);
-  EXPECT_EQ(badgeForLine("S"), nullptr);
-  EXPECT_EQ(badgeForLine("S4A"), nullptr);
-  EXPECT_EQ(badgeForLine("U2X"), nullptr);
-}
-
-TEST(WienerBoardIconsTest, HandlesEmptyAndNullSafely) {
-  EXPECT_EQ(badgeForLine(nullptr), nullptr);
-  EXPECT_EQ(badgeForLine(""), nullptr);
+// The markers are discs with the letter knocked out, so the outer ring of dots
+// is identical and only the interior differs.
+TEST(WienerBoardIconsTest, MarkersDifferOnlyInTheirInterior) {
+  const auto& u = wiener_icons::ubahnInterchange();
+  const auto& s = wiener_icons::sbahnInterchange();
+  EXPECT_EQ(u.rows[0], s.rows[0]);
+  EXPECT_EQ(u.rows[u.height - 1], s.rows[s.height - 1]);
+  bool interiorDiffers = false;
+  for (int row = 2; row < u.height - 2; ++row) {
+    if (u.rows[row] != s.rows[row]) interiorDiffers = true;
+  }
+  EXPECT_TRUE(interiorDiffers);
 }
 
 TEST(WienerBoardIconsTest, ScalesWithTheBoardText) {
@@ -51,8 +40,8 @@ TEST(WienerBoardIconsTest, ScalesWithTheBoardText) {
 // Every row must fit the declared width, or a stray high bit would draw
 // outside the icon's box.
 TEST(WienerBoardIconsTest, RowBitsStayInsideTheDeclaredWidth) {
-  for (const auto* icon : {badgeForLine("U1"), badgeForLine("S1"), &wiener_icons::wheelchair()}) {
-    ASSERT_NE(icon, nullptr);
+  for (const auto* icon :
+       {&wiener_icons::ubahnInterchange(), &wiener_icons::sbahnInterchange(), &wiener_icons::wheelchair()}) {
     const uint16_t mask = static_cast<uint16_t>((1U << icon->width) - 1U);
     for (int row = 0; row < icon->height; ++row) {
       EXPECT_EQ(icon->rows[row] & ~mask, 0) << "row " << row;
