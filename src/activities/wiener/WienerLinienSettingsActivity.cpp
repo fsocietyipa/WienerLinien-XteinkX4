@@ -9,6 +9,7 @@
 
 #include "WienerLinienStore.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/settings/OtaUpdateActivity.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "activities/wiener/WienerStopsActivity.h"
 #include "components/UITheme.h"
@@ -20,7 +21,7 @@ WienerLinienSettingsActivity::WienerLinienSettingsActivity(GfxRenderer& renderer
   static constexpr StrId labels[MENU_ITEMS] = {
       StrId::STR_WL_STOPS,           StrId::STR_WIFI_NETWORKS,  StrId::STR_WL_DEPARTURE_COUNT,
       StrId::STR_WL_STOP_COLUMNS,    StrId::STR_WL_BOARD_THEME, StrId::STR_WL_REFRESH_INTERVAL,
-      StrId::STR_SD_FIRMWARE_UPDATE,
+      StrId::STR_SD_FIRMWARE_UPDATE, StrId::STR_CHECK_UPDATES,
   };
   for (int index = 0; index < MENU_ITEMS; ++index) {
     rowItems[index].label = I18N.get(labels[index]);
@@ -59,6 +60,17 @@ void WienerLinienSettingsActivity::activateIndex(const int index) {
     cycleRefreshInterval();
   } else if (index == 6) {
     auto activity = makeUniqueNoThrow<SdFirmwareUpdateActivity>(renderer, mappedInput);
+    if (!activity) {
+      showError = true;
+      requestUpdate();
+      return;
+    }
+    startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
+  } else if (index == 7) {
+    // Pulls the latest GitHub release and flashes it to the inactive OTA slot.
+    // Backing out of this activity silent-restarts (OtaUpdateActivity::onExit),
+    // which boots straight back to the departure board.
+    auto activity = makeUniqueNoThrow<OtaUpdateActivity>(renderer, mappedInput);
     if (!activity) {
       showError = true;
       requestUpdate();
@@ -126,6 +138,7 @@ void WienerLinienSettingsActivity::buildScreen(UiScreen& screen) {
   rowItems[4].value = themeValue;
   rowItems[5].value = refreshValue;
   rowItems[6].value = ">";
+  rowItems[7].value = ">";
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);

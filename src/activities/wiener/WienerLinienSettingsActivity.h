@@ -7,7 +7,7 @@ class WienerLinienSettingsActivity final : public UiListActivity {
   explicit WienerLinienSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
 
  private:
-  static constexpr int MENU_ITEMS = 7;
+  static constexpr int MENU_ITEMS = 8;
   freeink::ui::ListItem rowItems[MENU_ITEMS]{};
   char activeStopValue[96]{};
   char wifiValue[64]{};

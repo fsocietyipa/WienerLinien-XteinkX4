@@ -22,6 +22,8 @@ is buffered that does not have to be.
 - Wi-Fi stays associated with modem sleep disabled. If a refresh loses
   connectivity the firmware reconnects, keeps the last valid schedule on screen,
   and retries after 15 seconds.
+- Over-the-air updates: **Settings > Check for updates** pulls the latest
+  GitHub release and flashes it to the inactive OTA slot.
 - Firmware updates from the SD card.
 
 Settings are stored on the SD card in `/.crosspoint/wiener_linien.json`.
@@ -46,17 +48,32 @@ esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 \
 
 Adjust the serial port for your computer.
 
-If the X4 already runs a compatible CrossPoint-based firmware with an SD
-firmware updater, copy `wiener-linien-x4.bin` to the SD card and select it
-there. Once this firmware is installed, future `.bin` updates can be selected
-from **Settings > SD Card Firmware Update**.
-
 > The image is an ESP32-C3 application image, not a vendor `update.bin` package.
 > Do not rename it to `update.bin` for the Chinese stock updater.
+
+If the X4 already runs a compatible CrossPoint-based firmware with an SD
+firmware updater, copy `wiener-linien-x4.bin` to the SD card and select it
+there.
 
 Some Xteink units bought from third-party stores ship with USB flashing locked
 from the factory. If the browser's serial device picker never shows the device,
 see the unlock tool at https://crosspointreader.com/#unlock-tool.
+
+## Updating
+
+Once this firmware is installed, **Settings > Check for updates** connects to
+Wi-Fi, reads the latest release from this repository, and — if the release tag
+is newer than the running build — downloads `wiener-linien-x4.bin` straight into
+the inactive OTA partition and reboots into it. The image is rejected before it
+can become the boot target if its chip ID or embedded board tag does not match
+the device.
+
+`.bin` files on the SD card can also be flashed from **Settings > SD Card
+Firmware Update**.
+
+> The release asset name `wiener-linien-x4.bin` is part of the update contract.
+> Renaming it in a future release leaves installed devices unable to find the
+> update.
 
 ## Configure
 
