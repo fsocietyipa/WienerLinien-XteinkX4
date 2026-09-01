@@ -44,5 +44,5 @@ python3 scripts/debugging_monitor.py
 
 ## Common troubleshooting references
 
-- [User Guide troubleshooting section](../../USER_GUIDE.md#7-troubleshooting-issues--escaping-bootloop)
-- [Webserver troubleshooting](../troubleshooting.md)
+- [Troubleshooting](../troubleshooting.md)
+- [Recovering a bricked device](../fix-bricked-xteink.md)

@@ -1,60 +1,58 @@
 # Troubleshooting
 
-This document shows common issues and possible solutions while using the device features.
+Common issues while running the departure board.
 
-- [Troubleshooting](#troubleshooting)
-    - [Cannot See the Device on the Network](#cannot-see-the-device-on-the-network)
-    - [Connection Drops or Times Out](#connection-drops-or-times-out)
-    - [Upload Fails](#upload-fails)
-    - [Saved Password Not Working](#saved-password-not-working)
+- [Board shows no departures](#board-shows-no-departures)
+- [Wi-Fi connection drops or times out](#wi-fi-connection-drops-or-times-out)
+- [Saved password not working](#saved-password-not-working)
+- [Settings are not retained](#settings-are-not-retained)
 
-### Cannot See the Device on the Network
+### Board shows no departures
 
-**Problem:** Browser shows "Cannot connect" or "Site can't be reached"
-
-**Solutions:**
-
-1. Verify both devices are on the correct network
-   - Check your computer/phone Wi-Fi settings
-   - In **Join Network** mode, your computer/phone and CrossPoint Reader must be on the same Wi-Fi network
-   - In **Create Hotspot** mode, your computer/phone must be connected to the `CrossPoint-Reader` hotspot
-2. Double-check the IP address
-   - Make sure you typed it correctly
-   - Include `http://` at the beginning
-   - Try the displayed IP address if `http://crosspoint.local/` does not resolve
-3. Try disabling VPN if you're using one
-4. Some networks have "client isolation" enabled - use Create Hotspot mode or check with your network administrator
-
-### Connection Drops or Times Out
-
-**Problem:** Wi-Fi connection is unstable
+**Problem:** A stop column stays empty, or the board keeps showing a stale
+schedule.
 
 **Solutions:**
 
-1. Move closer to the Wi-Fi router, or use Create Hotspot mode for a direct connection
-2. Check signal strength on the device (should be at least `||` or better)
-3. Avoid interference from other devices
-4. Try a different Wi-Fi network if available
+1. Check the RBL ID. It is the numeric stop identifier from the Wiener Linien
+   realtime data set — not the stop number printed on the shelter. A wrong RBL
+   returns a valid but empty response.
+2. Check the line filter for that stop. A filter such as `1, D` hides every
+   other line at the stop; clear it to see all departures.
+3. Confirm Wi-Fi is up. Without connectivity the firmware keeps the last valid
+   schedule on screen and retries every 15 seconds.
+4. Some stops publish no realtime data outside service hours.
 
-### Upload Fails
+### Wi-Fi connection drops or times out
 
-**Problem:** File upload doesn't complete or shows an error
-
-**Solutions:**
-
-1. Check that the SD card has enough free space
-2. Check that the filename is valid for the SD card filesystem
-3. Try uploading a smaller file first to test
-4. Refresh the browser page and try again
-5. If WebSocket upload fails repeatedly, refresh the page and retry with the HTTP fallback path
-
-### Saved Password Not Working
-
-**Problem:** Device fails to connect with saved credentials
+**Problem:** Refreshes fail intermittently.
 
 **Solutions:**
 
-1. When connection fails, you'll be prompted to "Forget Network"
-2. Select **Yes** to remove the saved password
-3. Reconnect and enter the password again
-4. Choose to save the new password
+1. Move the device closer to the router — the X4 has a small onboard antenna.
+2. Check signal strength on the device (should be at least `||`).
+3. The board keeps Wi-Fi associated with modem sleep disabled. A router that
+   aggressively de-authenticates idle clients can still drop it; the firmware
+   reconnects on the next refresh.
+4. Try a 2.4GHz network. The ESP32-C3 has no 5GHz radio.
+
+### Saved password not working
+
+**Problem:** The device fails to connect with saved credentials.
+
+**Solutions:**
+
+1. When the connection fails, you are prompted to "Forget Network".
+2. Select **Yes** to remove the saved password.
+3. Reconnect and enter the password again, then choose to save it.
+
+### Settings are not retained
+
+**Problem:** Stops or Wi-Fi credentials are lost after a power cycle.
+
+**Solutions:**
+
+1. Settings live on the SD card at `/.crosspoint/wiener_linien.json`. Confirm an
+   SD card is inserted and writable.
+2. A card formatted as exFAT with a very large cluster size can fail to mount;
+   reformat as FAT32.

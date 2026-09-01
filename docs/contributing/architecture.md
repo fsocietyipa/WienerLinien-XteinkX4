@@ -180,8 +180,6 @@ Server behavior:
 - browser APIs for file management, settings, fonts, OPDS servers, and saved Wi-Fi networks
 - activity requests faster loop responsiveness while server is running
 
-Endpoint reference: `docs/webserver-endpoints.md`.
-
 ## Build-time generated assets
 
 Some sources are generated and should not be edited manually.
@@ -212,7 +210,6 @@ When editing related source assets, regenerate via normal build steps/scripts.
 
 ## Scope guardrails
 
-Before implementing larger ideas, check:
-
-- [SCOPE.md](../../SCOPE.md)
-- [GOVERNANCE.md](../../GOVERNANCE.md)
+This firmware is a single-purpose departure board. Before implementing
+larger ideas, weigh them against the 380KB RAM ceiling and the appliance
+boot path described in [AGENTS.md](../../AGENTS.md).

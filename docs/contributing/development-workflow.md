@@ -13,7 +13,6 @@ This page defines the expected local workflow before opening a pull request.
 
 ## 2) Implement with scope in mind
 
-- Confirm your idea is in project scope: [SCOPE.md](../../SCOPE.md)
 - Prefer incremental changes over broad refactors
 
 ## 3) Run local checks
@@ -41,5 +40,3 @@ If `clang-format` is missing or too old locally, see [Getting Started](./getting
 - Be explicit and concise in responses
 - Keep discussions technical and respectful
 - Assume good intent and focus on code-level feedback
-
-For community expectations, see [GOVERNANCE.md](../../GOVERNANCE.md).

@@ -31,3 +31,7 @@ lib/EpdFont/scripts/output/
 /sdkconfig.*
 sdkconfig.sticky
 flake.*
+
+# Release artifacts built locally
+/wiener-linien-x4.bin
+/wiener-linien-x4.zip

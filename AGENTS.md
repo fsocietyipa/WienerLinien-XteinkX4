@@ -48,7 +48,7 @@ Never invoke or probe `clang-format` directly. The repository wrapper is the onl
 
 ### Hardware Specs
 
-* MCUs: ESP32-C3 (single-core RISC-V @ 160MHz) and ESP32-S3 (`sticky`, dual-core Xtensa LX7)
+* MCU: ESP32-C3 (single-core RISC-V @ 160MHz)
 * RAM: ~380KB usable on ESP32-C3 (VERY LIMITED - primary project constraint)
   * **NO PSRAM on C3**.
   * **Single Buffer Mode**: Only ONE 48KB framebuffer (not double-buffered)
@@ -109,9 +109,7 @@ Never invoke or probe `clang-format` directly. The repository wrapper is the onl
 * **Logging**: ALWAYS use `LOG_INF`, `LOG_DBG`, or `LOG_ERR` from `Logging.h`. Raw Serial output is deprecated.
 * **Environments** (in `platformio.ini`):
   * `default`: Development (LOG_LEVEL=2, serial enabled)
-  * `gh_release`: Production (LOG_LEVEL=0)
-  * `gh_release_rc`: Release candidate (LOG_LEVEL=1)
-  * `slim`: Minimal build (no serial logging)
+  * `gh_release`: Release (LOG_LEVEL=1)
 
 ### Critical Build Flags
 
@@ -907,8 +905,6 @@ build_flags =
 | ------------- | ------------------------------------------- | ---------------------- |
 | Build Check   | `.github/workflows/ci.yml`                  | Verifies code compiles |
 | Format Check  | `.github/workflows/pr-formatting-check.yml` | Validates clang-format |
-| Release Build | `.github/workflows/release.yml`             | Production releases    |
-| RC Build      | `.github/workflows/release_candidate.yml`   | Release candidates     |
 
 **Rules**:
 
