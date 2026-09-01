@@ -3,14 +3,18 @@
 #include <algorithm>
 #include <utility>
 
+#include "wiener/WienerBoardLayout.h"
+#include "wiener/WienerLinienParser.h"
+
 namespace {
 constexpr uint8_t MIN_DEPARTURES = 1;
-constexpr uint8_t MAX_DEPARTURES = 10;
+// Clamps mirror what the board can actually render, so the settings screen
+// cannot offer a value the layout or the parser would silently ignore.
+constexpr uint8_t MAX_DEPARTURES = static_cast<uint8_t>(WienerLinienParser::MAX_DEPARTURES);
 constexpr uint8_t MIN_COLUMNS = 1;
-constexpr uint8_t MAX_COLUMNS = 3;
+constexpr uint8_t MAX_COLUMNS = static_cast<uint8_t>(wiener_board::MAX_COLUMNS);
 constexpr uint16_t MIN_REFRESH_SECONDS = 30;
 constexpr uint16_t MAX_REFRESH_SECONDS = 300;
-constexpr size_t MAX_STOPS = 8;
 }  // namespace
 
 void WienerLinienStore::toJson(JsonDocument& doc) const {
@@ -31,9 +35,9 @@ void WienerLinienStore::toJson(JsonDocument& doc) const {
 bool WienerLinienStore::fromJson(JsonVariantConst doc) {
   config.stops.clear();
   JsonArrayConst stops = doc["stops"].as<JsonArrayConst>();
-  config.stops.reserve(std::min(stops.size(), MAX_STOPS));
+  config.stops.reserve(std::min(stops.size(), WIENER_MAX_STOPS));
   for (JsonObjectConst value : stops) {
-    if (config.stops.size() >= MAX_STOPS) break;
+    if (config.stops.size() >= WIENER_MAX_STOPS) break;
     WienerLinienStop stop;
     stop.name = value["name"] | "";
     stop.rbl = value["rbl"] | "";
@@ -64,7 +68,7 @@ const WienerLinienStop* WienerLinienStore::getStop(const size_t index) const {
 const WienerLinienStop* WienerLinienStore::getActiveStop() const { return getStop(config.activeStopIndex); }
 
 bool WienerLinienStore::addStop(const WienerLinienStop& stop) {
-  if (config.stops.size() >= MAX_STOPS) return false;
+  if (config.stops.size() >= WIENER_MAX_STOPS) return false;
   config.stops.push_back(stop);
   config.activeStopIndex = static_cast<uint8_t>(config.stops.size() - 1);
   return saveToFile();

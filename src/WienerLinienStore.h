@@ -13,6 +13,10 @@ struct WienerLinienStop {
   std::string lineFilter;
 };
 
+// Hard cap on configured stops. The board caches one schedule per stop in a
+// fixed array sized from this, so the two must not drift apart.
+constexpr size_t WIENER_MAX_STOPS = 8;
+
 struct WienerLinienConfig {
   std::vector<WienerLinienStop> stops;
   uint8_t activeStopIndex = 0;

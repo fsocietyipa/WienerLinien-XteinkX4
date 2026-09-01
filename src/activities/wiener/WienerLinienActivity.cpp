@@ -102,7 +102,7 @@ void WienerLinienActivity::onEnter() {
   Activity::onEnter();
   setBoardOrientation();
   errorMessage = nullptr;
-  visibleColumnCount = 0;
+  schedules.fill({});
 
   const auto* stop = WIENER_LINIEN_STORE.getActiveStop();
   if (!stop || stop->rbl.empty()) {
@@ -194,18 +194,25 @@ void WienerLinienActivity::drawBoard() {
     drawMessage(message, 8, 8, boardWidth - 16, boardHeight - 16, ink);
     return;
   }
-  if (visibleColumnCount == 0) {
+  // Stops are assigned to columns starting from the active one and wrapping, so
+  // Previous/Next slide the whole visible set by one stop over the cache.
+  const auto& config = WIENER_LINIEN_STORE.getConfig();
+  const wiener_board::BoardLayout layout =
+      wiener_board::planColumns(std::min(config.stops.size(), WIENER_MAX_STOPS), config.activeStopIndex,
+                                config.columnCount, config.maxDepartures);
+  const size_t columnCount = layout.columnCount;
+  if (columnCount == 0) {
     drawMessage(tr(STR_WL_NO_DEPARTURES), 8, 8, boardWidth - 16, boardHeight - 16, ink);
     return;
   }
 
-  const uint8_t rowCount = WIENER_LINIEN_STORE.getConfig().maxDepartures;
-  for (size_t index = 0; index < visibleColumnCount; ++index) {
-    const int left = static_cast<int>(boardWidth * index / visibleColumnCount);
-    const int right = static_cast<int>(boardWidth * (index + 1) / visibleColumnCount);
+  const uint8_t rowsPerStop = std::max<uint8_t>(1, config.maxDepartures);
+  for (size_t index = 0; index < columnCount; ++index) {
+    const int left = static_cast<int>(boardWidth * index / columnCount);
+    const int right = static_cast<int>(boardWidth * (index + 1) / columnCount);
     if (index > 0) renderer.drawLine(left, 0, left, boardHeight - 1, 2, ink);
-    drawColumn(columns[index], left + (index > 0 ? 2 : 0), 0, right - left - (index > 0 ? 2 : 0), boardHeight, rowCount,
-               ink);
+    drawColumn(layout.columns[index], left + (index > 0 ? 2 : 0), 0, right - left - (index > 0 ? 2 : 0), boardHeight,
+               rowsPerStop, ink);
   }
 }
 
@@ -218,28 +225,59 @@ void WienerLinienActivity::drawMessage(const char* message, const int x, const i
   WienerDisplayFont::drawCentered(renderer, x, y, width, height, normalized, scale, ink);
 }
 
-void WienerLinienActivity::drawColumn(const StopColumn& column, const int x, const int y, const int width,
-                                      const int height, const uint8_t rowCount, const bool ink) {
+void WienerLinienActivity::drawColumn(const wiener_board::ColumnLayout& layout, const int x, const int y,
+                                      const int width, const int height, const uint8_t rowsPerStop, const bool ink) {
+  if (layout.sectionCount == 0) return;
+
+  // Section chrome is fixed, so the rest of the column belongs to the rows.
+  // Splitting that remainder by cumulative row index keeps every row in the
+  // column the same height and lands the last section exactly on the bottom.
+  const int chrome = static_cast<int>(layout.sectionCount) * HEADER_HEIGHT + LABEL_HEIGHT;
+  const int rowsHeight = std::max(1, height - chrome);
+  const size_t totalRows = layout.sectionCount * rowsPerStop;
+
+  int top = y;
+  size_t rowsPlaced = 0;
+  for (size_t index = 0; index < layout.sectionCount; ++index) {
+    const size_t rowsAfter = rowsPlaced + rowsPerStop;
+    const int sectionRows =
+        static_cast<int>(rowsHeight * rowsAfter / totalRows) - static_cast<int>(rowsHeight * rowsPlaced / totalRows);
+    const int sectionHeight = HEADER_HEIGHT + (index == 0 ? LABEL_HEIGHT : 0) + sectionRows;
+    if (index > 0) renderer.drawLine(x, top, x + width - 1, top, 2, ink);
+    drawSection(schedules[layout.stopIndices[index]], x, top, width, sectionHeight, rowsPerStop, ink, index == 0);
+    top += sectionHeight;
+    rowsPlaced = rowsAfter;
+  }
+}
+
+void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x, const int y, const int width,
+                                       const int height, const uint8_t rowCount, const bool ink,
+                                       const bool drawLabels) {
   char title[112]{};
-  WienerDisplayFont::normalize(column.title[0] ? column.title : tr(STR_WL_TITLE), title, sizeof(title));
+  WienerDisplayFont::normalize(schedule.title[0] ? schedule.title : tr(STR_WL_TITLE), title, sizeof(title));
   trimToWidth(title, width - 12);
   const int titleScale = WienerDisplayFont::fitScale(title, width - 12, HEADER_HEIGHT - 8, 3);
   WienerDisplayFont::drawCentered(renderer, x + 6, y + 3, width - 12, HEADER_HEIGHT - 6, title, titleScale, ink);
   renderer.drawLine(x, y + HEADER_HEIGHT, x + width - 1, y + HEADER_HEIGHT, ink);
 
-  char lineHeader[32]{};
-  char minutesHeader[64]{};
-  WienerDisplayFont::normalize(tr(STR_WL_LINE_HEADER), lineHeader, sizeof(lineHeader));
-  WienerDisplayFont::normalize(tr(STR_WL_MINUTES_HEADER), minutesHeader, sizeof(minutesHeader));
-  trimToWidth(minutesHeader, width - WienerDisplayFont::textWidth(lineHeader, 1) - 18);
-  const int labelY = y + HEADER_HEIGHT + (LABEL_HEIGHT - 7) / 2;
-  WienerDisplayFont::drawText(renderer, x + 5, labelY, lineHeader, 1, ink);
-  WienerDisplayFont::drawText(renderer, x + width - WienerDisplayFont::textWidth(minutesHeader, 1) - 5, labelY,
-                              minutesHeader, 1, ink);
+  // The Line/Min labels describe columns that are identical in every section,
+  // so they are drawn once, under the first stop title in the column.
+  const int labelHeight = drawLabels ? LABEL_HEIGHT : 0;
+  if (drawLabels) {
+    char lineHeader[32]{};
+    char minutesHeader[64]{};
+    WienerDisplayFont::normalize(tr(STR_WL_LINE_HEADER), lineHeader, sizeof(lineHeader));
+    WienerDisplayFont::normalize(tr(STR_WL_MINUTES_HEADER), minutesHeader, sizeof(minutesHeader));
+    trimToWidth(minutesHeader, width - WienerDisplayFont::textWidth(lineHeader, 1) - 18);
+    const int labelY = y + HEADER_HEIGHT + (LABEL_HEIGHT - 7) / 2;
+    WienerDisplayFont::drawText(renderer, x + 5, labelY, lineHeader, 1, ink);
+    WienerDisplayFont::drawText(renderer, x + width - WienerDisplayFont::textWidth(minutesHeader, 1) - 5, labelY,
+                                minutesHeader, 1, ink);
+  }
 
-  const int rowsTop = y + HEADER_HEIGHT + LABEL_HEIGHT;
+  const int rowsTop = y + HEADER_HEIGHT + labelHeight;
   renderer.drawLine(x, rowsTop, x + width - 1, rowsTop, ink);
-  const int bodyHeight = std::max(1, height - HEADER_HEIGHT - LABEL_HEIGHT);
+  const int bodyHeight = std::max(1, height - HEADER_HEIGHT - labelHeight);
   const int lineWidth = std::clamp(width / 5, 46, 105);
   const int minuteWidth = std::clamp(width / 6, 42, 96);
   const int lineRight = x + lineWidth;
@@ -247,24 +285,24 @@ void WienerLinienActivity::drawColumn(const StopColumn& column, const int x, con
   renderer.drawLine(lineRight, rowsTop, lineRight, y + height - 1, ink);
   renderer.drawLine(minuteLeft, rowsTop, minuteLeft, y + height - 1, ink);
 
-  if (column.message) {
-    drawMessage(column.message, lineRight + 5, rowsTop + 5, minuteLeft - lineRight - 10, bodyHeight - 10, ink);
+  if (schedule.message) {
+    drawMessage(schedule.message, lineRight + 5, rowsTop + 5, minuteLeft - lineRight - 10, bodyHeight - 10, ink);
     return;
   }
-  if (column.departureCount == 0) {
+  if (schedule.departureCount == 0) {
     drawMessage(tr(STR_WL_NO_DEPARTURES), lineRight + 5, rowsTop + 5, minuteLeft - lineRight - 10, bodyHeight - 10,
                 ink);
     return;
   }
 
-  const size_t visibleRows = std::min(column.departureCount, static_cast<size_t>(rowCount));
+  const size_t visibleRows = std::min(schedule.departureCount, static_cast<size_t>(rowCount));
   for (size_t index = 0; index < visibleRows; ++index) {
     const int rowTop = rowsTop + static_cast<int>(bodyHeight * index / rowCount);
     const int rowBottom = rowsTop + static_cast<int>(bodyHeight * (index + 1) / rowCount);
     const int rowHeight = std::max(1, rowBottom - rowTop);
     if (index > 0) renderer.drawLine(x, rowTop, x + width - 1, rowTop, ink);
 
-    const auto& departure = column.departures[index];
+    const auto& departure = schedule.departures[index];
     char line[20]{};
     WienerDisplayFont::normalize(departure.line, line, sizeof(line));
     trimToWidth(line, lineWidth - 8);
@@ -366,9 +404,12 @@ bool WienerLinienActivity::reconnectWifi() {
 }
 
 bool WienerLinienActivity::hasScheduleData() const {
-  if (state != State::READY || visibleColumnCount == 0) return false;
-  for (size_t index = 0; index < visibleColumnCount; ++index) {
-    if (columns[index].message == nullptr && columns[index].title[0] != '\0') return true;
+  if (state != State::READY) return false;
+  // Derived from the cache rather than from the last fetch's success count: a
+  // refresh where every stop fails must not make the board forget what it is
+  // already showing and fall back to the loading screen.
+  for (const auto& schedule : schedules) {
+    if (schedule.message == nullptr && schedule.title[0] != '\0') return true;
   }
   return false;
 }
@@ -421,8 +462,10 @@ void WienerLinienActivity::launchSettings() {
       requestUpdate();
       return;
     }
-    visibleColumnCount = 0;
-    columns.fill({});
+    // Stops may have been added, removed, or re-pointed; the whole cache is
+    // stale, so drop it and refetch (this is the one path that may show
+    // Loading again).
+    schedules.fill({});
     checkAndConnectWifi();
   });
 }
@@ -450,25 +493,25 @@ void WienerLinienActivity::fetchSchedules() {
   }
 
   errorMessage = nullptr;
-  const size_t requestedColumns = std::min({static_cast<size_t>(config.columnCount), config.stops.size(), MAX_COLUMNS});
-  if (!hadSchedule || requestedColumns != visibleColumnCount) {
-    visibleColumnCount = requestedColumns;
-    columns.fill({});
+  // The loading screen is only acceptable when there is nothing to show yet.
+  // Once a schedule is on the panel, refreshes repaint over the stale board.
+  const size_t stopCount = std::min(config.stops.size(), WIENER_MAX_STOPS);
+  if (!hadSchedule) {
+    schedules.fill({});
     state = State::LOADING;
     requestUpdateAndWait();
   }
 
-  size_t successfulColumns = 0;
-  for (size_t columnIndex = 0; columnIndex < visibleColumnCount; ++columnIndex) {
-    auto& column = columns[columnIndex];
-    StopColumn freshColumn;
-    const size_t stopIndex = (static_cast<size_t>(config.activeStopIndex) + columnIndex) % config.stops.size();
+  size_t successfulStops = 0;
+  for (size_t stopIndex = 0; stopIndex < stopCount; ++stopIndex) {
+    auto& schedule = schedules[stopIndex];
+    StopSchedule freshSchedule;
     const auto* stop = WIENER_LINIEN_STORE.getStop(stopIndex);
     if (!stop || stop->rbl.empty()) {
-      if (!hadSchedule) column.message = tr(STR_WL_CONFIGURE_FIRST);
+      if (schedule.title[0] == '\0') schedule.message = tr(STR_WL_CONFIGURE_FIRST);
       continue;
     }
-    snprintf(freshColumn.title, sizeof(freshColumn.title), "%s",
+    snprintf(freshSchedule.title, sizeof(freshSchedule.title), "%s",
              stop->name.empty() ? stop->rbl.c_str() : stop->name.c_str());
 
     auto parser = makeUniqueNoThrow<WienerLinienParser>(stop->lineFilter.c_str(), config.maxDepartures);
@@ -487,24 +530,26 @@ void WienerLinienActivity::fetchSchedules() {
       return !parser->hasError();
     });
     if (!fetched) {
+      // Leave a stop that already has departures showing them; only a stop with
+      // nothing to display inherits the error text.
       const char* fetchError = parser->hasError() ? tr(STR_WL_PARSE_FAILED) : tr(STR_WL_FETCH_FAILED);
-      if (!hadSchedule) column.message = fetchError;
+      if (schedule.title[0] == '\0') schedule.message = fetchError;
       if (!errorMessage) errorMessage = fetchError;
       continue;
     }
 
     parser->finalize();
-    freshColumn.departureCount = parser->getDepartureCount();
-    for (size_t index = 0; index < freshColumn.departureCount; ++index) {
-      freshColumn.departures[index] = parser->getDeparture(index);
+    freshSchedule.departureCount = parser->getDepartureCount();
+    for (size_t index = 0; index < freshSchedule.departureCount; ++index) {
+      freshSchedule.departures[index] = parser->getDeparture(index);
     }
     const char* apiTitle = parser->getStopTitle();
-    if (apiTitle[0] != '\0') snprintf(freshColumn.title, sizeof(freshColumn.title), "%s", apiTitle);
-    column = freshColumn;
-    ++successfulColumns;
+    if (apiTitle[0] != '\0') snprintf(freshSchedule.title, sizeof(freshSchedule.title), "%s", apiTitle);
+    schedule = freshSchedule;
+    ++successfulStops;
   }
 
-  if (successfulColumns == 0) {
+  if (successfulStops == 0) {
     if (hadSchedule) {
       state = State::READY;
       errorMessage = nullptr;
@@ -530,7 +575,7 @@ void WienerLinienActivity::switchStop(const int direction) {
   if (next < 0) next = static_cast<int>(count) - 1;
   if (next >= static_cast<int>(count)) next = 0;
   if (!WIENER_LINIEN_STORE.setActiveStop(static_cast<size_t>(next))) return;
-  visibleColumnCount = 0;
-  columns.fill({});
-  checkAndConnectWifi();
+  // Every stop was fetched on the last refresh, so this is a re-layout of data
+  // already in memory. Deliberately no fetch and no LOADING state here.
+  requestUpdate();
 }
