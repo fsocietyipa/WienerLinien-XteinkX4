@@ -408,7 +408,7 @@ void WienerLinienActivity::launchSettings() {
       return;
     }
     visibleColumnCount = 0;
-    for (auto& column : columns) column = {};
+    columns.fill({});
     checkAndConnectWifi();
   });
 }
@@ -439,7 +439,7 @@ void WienerLinienActivity::fetchSchedules() {
   const size_t requestedColumns = std::min({static_cast<size_t>(config.columnCount), config.stops.size(), MAX_COLUMNS});
   if (!hadSchedule || requestedColumns != visibleColumnCount) {
     visibleColumnCount = requestedColumns;
-    for (auto& column : columns) column = {};
+    columns.fill({});
     state = State::LOADING;
     requestUpdateAndWait();
   }
@@ -517,6 +517,6 @@ void WienerLinienActivity::switchStop(const int direction) {
   if (next >= static_cast<int>(count)) next = 0;
   if (!WIENER_LINIEN_STORE.setActiveStop(static_cast<size_t>(next))) return;
   visibleColumnCount = 0;
-  for (auto& column : columns) column = {};
+  columns.fill({});
   checkAndConnectWifi();
 }

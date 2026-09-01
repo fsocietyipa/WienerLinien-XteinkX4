@@ -3,6 +3,7 @@
 #include <I18n.h>
 #include <Memory.h>
 
+#include <algorithm>
 #include <cctype>
 
 #include "activities/util/KeyboardEntryActivity.h"
@@ -13,10 +14,8 @@ namespace fui = freeink::ui;
 namespace {
 bool validRbl(const std::string& value) {
   if (value.empty()) return false;
-  for (const char c : value) {
-    if (!std::isdigit(static_cast<unsigned char>(c))) return false;
-  }
-  return true;
+  return std::all_of(value.begin(), value.end(),
+                     [](const char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0; });
 }
 }  // namespace
 
