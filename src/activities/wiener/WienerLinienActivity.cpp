@@ -13,6 +13,7 @@
 #include <cstring>
 #include <string>
 
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "WienerLinienStore.h"
 #include "activities/network/WifiSelectionActivity.h"
@@ -113,6 +114,25 @@ void drawRefreshIcon(const GfxRenderer& renderer, const int x, const int y, cons
   renderer.drawLine(x + 7, y + 23, x + 5, y + 20, width, ink);
   renderer.drawLine(x + 5, y + 20, x + 5, y + 26, width, ink);
   renderer.drawLine(x + 5, y + 20, x + 11, y + 20, width, ink);
+}
+
+// Which board action a front key triggers. This is the inverse of
+// MappedInputManager::mapButton's Back/Confirm/Left/Right cases, so a user who
+// remaps the front buttons gets hints that follow the keys.
+//
+// Deliberately not MappedInputManager::mapLabels(): that also swaps
+// previous/next when frontButtonFollowOrientation is set and the screen is
+// rotated, which this board always is. The board's input handling reads raw
+// Button::Left/Right with no such swap, so borrowing mapLabels' swap would
+// label the keys with the opposite of what they do.
+enum class ToolbarAction : uint8_t { None, Settings, Refresh, Previous, Next };
+
+ToolbarAction actionForFrontButton(const uint8_t hardwareIndex) {
+  if (hardwareIndex == SETTINGS.frontButtonBack) return ToolbarAction::Settings;
+  if (hardwareIndex == SETTINGS.frontButtonConfirm) return ToolbarAction::Refresh;
+  if (hardwareIndex == SETTINGS.frontButtonLeft) return ToolbarAction::Previous;
+  if (hardwareIndex == SETTINGS.frontButtonRight) return ToolbarAction::Next;
+  return ToolbarAction::None;
 }
 
 // The same glyph at half scale, to match drawIconHalf in the toolbar.
@@ -407,24 +427,39 @@ void WienerLinienActivity::drawToolbar(const bool ink) {
   const freeink::Icon settingsIcon{32, 32, 16, Settings2Icon};
 
   const int buttonX = x + (TOOLBAR_WIDTH - BUTTON_WIDTH) / 2;
-  for (int index = 0; index < 4; ++index) {
-    const int centerY = index * slotHeight + slotHeight / 2;
+  for (int slot = 1; slot < 4; ++slot) {
+    renderer.drawLine(x + 4, slot * slotHeight, renderer.getScreenWidth() - 5, slot * slotHeight, ink);
+  }
+
+  // Slots run down the screen while the physical keys run up it: the board
+  // renders rotated, so front key 0 belongs to the bottom slot.
+  for (uint8_t hardwareIndex = 0; hardwareIndex < 4; ++hardwareIndex) {
+    const int slot = 3 - hardwareIndex;
+    const int centerY = slot * slotHeight + slotHeight / 2;
     const int buttonY = centerY - BUTTON_HEIGHT / 2;
     renderer.drawRect(buttonX, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT, 1, ink);
-    if (index > 0) {
-      renderer.drawLine(x + 4, index * slotHeight, renderer.getScreenWidth() - 5, index * slotHeight, ink);
-    }
+
     // Icons are centred in the button box at half their asset size.
-    if (index == 0)
-      drawIconHalf(renderer, settingsIcon, buttonX + (BUTTON_WIDTH - 16) / 2, buttonY + (BUTTON_HEIGHT - 16) / 2, ink);
-    else if (index == 1)
-      drawRefreshIconHalf(renderer, buttonX + (BUTTON_WIDTH - 16) / 2, buttonY + (BUTTON_HEIGHT - 16) / 2, ink);
-    else if (index == 2)
-      drawIconHalf(renderer, icon_reader_back_24, buttonX + (BUTTON_WIDTH - 12) / 2, buttonY + (BUTTON_HEIGHT - 12) / 2,
-                   ink);
-    else
-      drawIconHalf(renderer, icon_reader_next_24, buttonX + (BUTTON_WIDTH - 12) / 2, buttonY + (BUTTON_HEIGHT - 12) / 2,
-                   ink);
+    const int wideX = buttonX + (BUTTON_WIDTH - 16) / 2;
+    const int wideY = buttonY + (BUTTON_HEIGHT - 16) / 2;
+    const int narrowX = buttonX + (BUTTON_WIDTH - 12) / 2;
+    const int narrowY = buttonY + (BUTTON_HEIGHT - 12) / 2;
+    switch (actionForFrontButton(hardwareIndex)) {
+      case ToolbarAction::Settings:
+        drawIconHalf(renderer, settingsIcon, wideX, wideY, ink);
+        break;
+      case ToolbarAction::Refresh:
+        drawRefreshIconHalf(renderer, wideX, wideY, ink);
+        break;
+      case ToolbarAction::Previous:
+        drawIconHalf(renderer, icon_reader_back_24, narrowX, narrowY, ink);
+        break;
+      case ToolbarAction::Next:
+        drawIconHalf(renderer, icon_reader_next_24, narrowX, narrowY, ink);
+        break;
+      case ToolbarAction::None:
+        break;
+    }
   }
 }
 
