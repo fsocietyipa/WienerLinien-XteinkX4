@@ -25,6 +25,11 @@ struct WienerLinienConfig {
   // Departure rows a column is packed to before it stops pulling in stops.
   uint8_t boardRows = 3;
   bool darkTheme = true;
+  // Interchange symbols are shown separately in the stop title and in the
+  // destination, because a name can carry them in either place.
+  bool stopSymbols = true;
+  bool destinationSymbols = true;
+  bool wheelchair = true;
   uint16_t refreshSeconds = 60;
 };
 
@@ -52,6 +57,9 @@ class WienerLinienStore : public PersistableStore<WienerLinienStore> {
   bool setColumnCount(uint8_t value);
   bool setBoardRows(uint8_t value);
   bool setDarkTheme(bool value);
+  bool setStopSymbols(bool value);
+  bool setDestinationSymbols(bool value);
+  bool setWheelchair(bool value);
   bool setRefreshSeconds(uint16_t value);
 };
 

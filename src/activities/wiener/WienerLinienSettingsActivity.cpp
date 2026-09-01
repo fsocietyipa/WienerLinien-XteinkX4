@@ -20,15 +20,12 @@ namespace fui = freeink::ui;
 WienerLinienSettingsActivity::WienerLinienSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : UiListActivity("WienerLinienSettings", renderer, mappedInput) {
   static constexpr StrId labels[MENU_ITEMS] = {
-      StrId::STR_WL_STOPS,
-      StrId::STR_WIFI_NETWORKS,
-      StrId::STR_WL_DEPARTURE_COUNT,
-      StrId::STR_WL_STOP_COLUMNS,
-      StrId::STR_WL_BOARD_ROWS,
-      StrId::STR_WL_BOARD_THEME,
-      StrId::STR_WL_REFRESH_INTERVAL,
-      StrId::STR_SD_FIRMWARE_UPDATE,
-      StrId::STR_CHECK_UPDATES,
+      StrId::STR_WL_STOPS,           StrId::STR_WIFI_NETWORKS,
+      StrId::STR_WL_DEPARTURE_COUNT, StrId::STR_WL_STOP_COLUMNS,
+      StrId::STR_WL_BOARD_ROWS,      StrId::STR_WL_STOP_SYMBOLS,
+      StrId::STR_WL_DEST_SYMBOLS,    StrId::STR_WL_WHEELCHAIR,
+      StrId::STR_WL_BOARD_THEME,     StrId::STR_WL_REFRESH_INTERVAL,
+      StrId::STR_SD_FIRMWARE_UPDATE, StrId::STR_CHECK_UPDATES,
   };
   for (int index = 0; index < MENU_ITEMS; ++index) {
     rowItems[index].label = I18N.get(labels[index]);
@@ -70,10 +67,16 @@ void WienerLinienSettingsActivity::activateIndex(const int index) {
   } else if (index == 4) {
     cycleBoardRows();
   } else if (index == 5) {
-    cycleTheme();
+    toggleStopSymbols();
   } else if (index == 6) {
-    cycleRefreshInterval();
+    toggleDestSymbols();
   } else if (index == 7) {
+    toggleWheelchair();
+  } else if (index == 8) {
+    cycleTheme();
+  } else if (index == 9) {
+    cycleRefreshInterval();
+  } else if (index == 10) {
     auto activity = makeUniqueNoThrow<SdFirmwareUpdateActivity>(renderer, mappedInput);
     if (!activity) {
       showError = true;
@@ -81,7 +84,7 @@ void WienerLinienSettingsActivity::activateIndex(const int index) {
       return;
     }
     startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
-  } else if (index == 8) {
+  } else if (index == 11) {
     // Pulls the latest GitHub release and flashes it to the inactive OTA slot.
     // Backing out of this activity silent-restarts (OtaUpdateActivity::onExit),
     // which boots straight back to the departure board.
@@ -114,6 +117,21 @@ void WienerLinienSettingsActivity::cycleBoardRows() {
   const uint8_t next = current >= wiener_board::MAX_TARGET_ROWS ? static_cast<uint8_t>(wiener_board::MIN_TARGET_ROWS)
                                                                 : static_cast<uint8_t>(current + 1);
   showError = !WIENER_LINIEN_STORE.setBoardRows(next);
+  requestUpdate();
+}
+
+void WienerLinienSettingsActivity::toggleStopSymbols() {
+  showError = !WIENER_LINIEN_STORE.setStopSymbols(!WIENER_LINIEN_STORE.getConfig().stopSymbols);
+  requestUpdate();
+}
+
+void WienerLinienSettingsActivity::toggleDestSymbols() {
+  showError = !WIENER_LINIEN_STORE.setDestinationSymbols(!WIENER_LINIEN_STORE.getConfig().destinationSymbols);
+  requestUpdate();
+}
+
+void WienerLinienSettingsActivity::toggleWheelchair() {
+  showError = !WIENER_LINIEN_STORE.setWheelchair(!WIENER_LINIEN_STORE.getConfig().wheelchair);
   requestUpdate();
 }
 
@@ -152,6 +170,9 @@ void WienerLinienSettingsActivity::buildScreen(UiScreen& screen) {
   snprintf(departureCountValue, sizeof(departureCountValue), "%u", config.maxDepartures);
   snprintf(columnCountValue, sizeof(columnCountValue), "%u", config.columnCount);
   snprintf(boardRowsValue, sizeof(boardRowsValue), "%u", config.boardRows);
+  stopSymbolsValue = config.stopSymbols ? tr(STR_YES) : tr(STR_NO);
+  destSymbolsValue = config.destinationSymbols ? tr(STR_YES) : tr(STR_NO);
+  wheelchairValue = config.wheelchair ? tr(STR_YES) : tr(STR_NO);
   themeValue = config.darkTheme ? tr(STR_DARK) : tr(STR_LIGHT);
   snprintf(refreshValue, sizeof(refreshValue), tr(STR_WL_SECONDS_FORMAT), config.refreshSeconds);
 
@@ -160,10 +181,13 @@ void WienerLinienSettingsActivity::buildScreen(UiScreen& screen) {
   rowItems[2].value = departureCountValue;
   rowItems[3].value = columnCountValue;
   rowItems[4].value = boardRowsValue;
-  rowItems[5].value = themeValue;
-  rowItems[6].value = refreshValue;
-  rowItems[7].value = ">";
-  rowItems[8].value = ">";
+  rowItems[5].value = stopSymbolsValue;
+  rowItems[6].value = destSymbolsValue;
+  rowItems[7].value = wheelchairValue;
+  rowItems[8].value = themeValue;
+  rowItems[9].value = refreshValue;
+  rowItems[10].value = ">";
+  rowItems[11].value = ">";
 
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);

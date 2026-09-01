@@ -77,4 +77,37 @@ TEST(WienerBoardTextTest, UAndSUseDifferentMarkers) {
   EXPECT_NE(wiener_icons::ubahnInterchange().rows[3], wiener_icons::sbahnInterchange().rows[3]);
 }
 
+// The settings can turn the markers off; the text then measures and renders as
+// plain letters.
+TEST(WienerBoardTextTest, MarkersOffMeasuresAsPlainText) {
+  EXPECT_EQ(WienerBoardText::width("PRATERSTERN S U", 1, false), plainWidth("PRATERSTERN S U"));
+  EXPECT_EQ(WienerBoardText::width("RING U", 3, false), plainWidth("RING U") * 3);
+  EXPECT_NE(WienerBoardText::width("RING U", 1, true), WienerBoardText::width("RING U", 1, false));
+}
+
+TEST(WienerBoardTextTest, MarkersOffAffectsFittingAndTrimming) {
+  const char* text = "PRATERSTERN S U";
+  EXPECT_GE(WienerBoardText::fitScale(text, 120, 40, 5, false), WienerBoardText::fitScale(text, 120, 40, 5, true));
+
+  char plain[64] = "PRATERSTERN S U";
+  WienerBoardText::trimToWidth(plain, 60, 1, false);
+  EXPECT_LE(WienerBoardText::width(plain, 1, false), 60);
+}
+
+TEST(WienerBoardTextTest, ReportsWhenALineCarriesAMarker) {
+  EXPECT_TRUE(WienerBoardText::hasMarker("PRATERSTERN U"));
+  EXPECT_TRUE(WienerBoardText::hasMarker("S RING"));
+  EXPECT_FALSE(WienerBoardText::hasMarker("PRATERSTERN"));
+  EXPECT_FALSE(WienerBoardText::hasMarker("S45 BUS USA"));
+  EXPECT_FALSE(WienerBoardText::hasMarker(""));
+  EXPECT_FALSE(WienerBoardText::hasMarker(nullptr));
+}
+
+// The marker is taller than a text row, and the layout uses this to add leading
+// so a two-line destination does not collide with the line above.
+TEST(WienerBoardTextTest, MarkerOverhangIsPositive) {
+  EXPECT_GT(WienerBoardText::markerOverhangRows(), 0);
+  EXPECT_EQ(WienerBoardText::markerOverhangRows(), wiener_icons::ubahnInterchange().height - 7);
+}
+
 }  // namespace

@@ -32,6 +32,9 @@ void WienerLinienStore::toJson(JsonDocument& doc) const {
   doc["max_departures"] = config.maxDepartures;
   doc["column_count"] = config.columnCount;
   doc["board_rows"] = config.boardRows;
+  doc["stop_symbols"] = config.stopSymbols;
+  doc["destination_symbols"] = config.destinationSymbols;
+  doc["wheelchair"] = config.wheelchair;
   doc["dark_theme"] = config.darkTheme;
   doc["refresh_seconds"] = config.refreshSeconds;
 }
@@ -61,6 +64,9 @@ bool WienerLinienStore::fromJson(JsonVariantConst doc) {
   config.columnCount = std::clamp(static_cast<uint8_t>(doc["column_count"] | 1), MIN_COLUMNS, MAX_COLUMNS);
   config.boardRows =
       std::clamp(static_cast<uint8_t>(doc["board_rows"] | DEFAULT_BOARD_ROWS), MIN_BOARD_ROWS, MAX_BOARD_ROWS);
+  config.stopSymbols = doc["stop_symbols"] | true;
+  config.destinationSymbols = doc["destination_symbols"] | true;
+  config.wheelchair = doc["wheelchair"] | true;
   config.darkTheme = doc["dark_theme"] | true;
   config.refreshSeconds =
       std::clamp(static_cast<uint16_t>(doc["refresh_seconds"] | 60), MIN_REFRESH_SECONDS, MAX_REFRESH_SECONDS);
@@ -123,6 +129,21 @@ bool WienerLinienStore::setBoardRows(const uint8_t value) {
 
 bool WienerLinienStore::setDarkTheme(const bool value) {
   config.darkTheme = value;
+  return saveToFile();
+}
+
+bool WienerLinienStore::setStopSymbols(const bool value) {
+  config.stopSymbols = value;
+  return saveToFile();
+}
+
+bool WienerLinienStore::setDestinationSymbols(const bool value) {
+  config.destinationSymbols = value;
+  return saveToFile();
+}
+
+bool WienerLinienStore::setWheelchair(const bool value) {
+  config.wheelchair = value;
   return saveToFile();
 }
 

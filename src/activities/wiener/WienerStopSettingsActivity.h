@@ -8,7 +8,7 @@ class WienerStopSettingsActivity final : public UiListActivity {
   explicit WienerStopSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, int stopIndex);
 
  private:
-  static constexpr int MENU_ITEMS = 5;
+  static constexpr int MENU_ITEMS = 6;
   int stopIndex;
   WienerLinienStop editStop;
   freeink::ui::ListItem rowItems[MENU_ITEMS]{};
@@ -22,4 +22,5 @@ class WienerStopSettingsActivity final : public UiListActivity {
   void drawFooter() override;
   bool save();
   void editText(int field);
+  void showRblWebsiteQr();
 };

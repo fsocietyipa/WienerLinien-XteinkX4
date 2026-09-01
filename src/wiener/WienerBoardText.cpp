@@ -28,30 +28,41 @@ constexpr int TEXT_ROWS = 7;
 
 }  // namespace
 
-int width(const char* text, const int scale) {
+bool hasMarker(const char* text) {
+  if (text == nullptr) return false;
+  for (size_t index = 0; text[index] != '\0'; ++index) {
+    if (badgeAt(text, index) != nullptr) return true;
+  }
+  return false;
+}
+
+int markerOverhangRows() { return wiener_icons::ubahnInterchange().height - TEXT_ROWS; }
+
+int width(const char* text, const int scale, const bool markers) {
   if (text == nullptr || text[0] == '\0') return 0;
   const int step = std::max(scale, 1);
   int total = 0;
   for (size_t index = 0; text[index] != '\0'; ++index) {
-    const auto* badge = badgeAt(text, index);
+    const auto* badge = markers ? badgeAt(text, index) : nullptr;
     total += (badge != nullptr ? badge->width + GAP : 6) * step;
   }
   return total - step;
 }
 
-int fitScale(const char* text, const int maxWidth, const int maxHeight, const int maxScale) {
-  if (text == nullptr || text[0] == '\0' || maxWidth <= 0 || maxHeight < 7) return 1;
+int fitScale(const char* text, const int maxWidth, const int maxHeight, const int maxScale, const bool markers) {
+  if (text == nullptr || text[0] == '\0' || maxWidth <= 0 || maxHeight < TEXT_ROWS) return 1;
   for (int scale = std::max(maxScale, 1); scale > 1; --scale) {
-    if (width(text, scale) <= maxWidth && 7 * scale <= maxHeight) return scale;
+    if (width(text, scale, markers) <= maxWidth && TEXT_ROWS * scale <= maxHeight) return scale;
   }
   return 1;
 }
 
-void draw(const GfxRenderer& renderer, const int x, const int y, const char* text, const int scale, const bool state) {
+void draw(const GfxRenderer& renderer, const int x, const int y, const char* text, const int scale, const bool state,
+          const bool markers) {
   if (text == nullptr || scale < 1) return;
   int cursor = x;
   for (size_t index = 0; text[index] != '\0'; ++index) {
-    if (const auto* badge = badgeAt(text, index)) {
+    if (const auto* badge = markers ? badgeAt(text, index) : nullptr) {
       const int offset = (TEXT_ROWS - badge->height) * scale / 2;
       wiener_icons::draw(renderer, *badge, cursor, y + offset, scale, state);
       cursor += (badge->width + GAP) * scale;
@@ -64,13 +75,13 @@ void draw(const GfxRenderer& renderer, const int x, const int y, const char* tex
 }
 
 void drawCentered(const GfxRenderer& renderer, const int x, const int y, const int boxWidth, const int boxHeight,
-                  const char* text, const int scale, const bool state) {
-  draw(renderer, x + std::max(0, (boxWidth - width(text, scale)) / 2), y + std::max(0, (boxHeight - 7 * scale) / 2),
-       text, scale, state);
+                  const char* text, const int scale, const bool state, const bool markers) {
+  draw(renderer, x + std::max(0, (boxWidth - width(text, scale, markers)) / 2),
+       y + std::max(0, (boxHeight - TEXT_ROWS * scale) / 2), text, scale, state, markers);
 }
 
-void trimToWidth(char* text, const int maxWidth, const int scale) {
-  if (text == nullptr || maxWidth <= 0 || width(text, scale) <= maxWidth) return;
+void trimToWidth(char* text, const int maxWidth, const int scale, const bool markers) {
+  if (text == nullptr || maxWidth <= 0 || width(text, scale, markers) <= maxWidth) return;
   size_t length = strlen(text);
   while (length > 0) {
     --length;
@@ -85,7 +96,7 @@ void trimToWidth(char* text, const int maxWidth, const int scale) {
       text[length - 2] = '.';
       text[length - 1] = '.';
     }
-    if (width(text, scale) <= maxWidth) return;
+    if (width(text, scale, markers) <= maxWidth) return;
     if (length >= 2) {
       text[length - 2] = first;
       text[length - 1] = second;

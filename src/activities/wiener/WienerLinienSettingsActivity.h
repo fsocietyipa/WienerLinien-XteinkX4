@@ -7,13 +7,16 @@ class WienerLinienSettingsActivity final : public UiListActivity {
   explicit WienerLinienSettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
 
  private:
-  static constexpr int MENU_ITEMS = 9;
+  static constexpr int MENU_ITEMS = 12;
   freeink::ui::ListItem rowItems[MENU_ITEMS]{};
   char activeStopValue[96]{};
   char wifiValue[64]{};
   char departureCountValue[8]{};
   char columnCountValue[8]{};
   char boardRowsValue[8]{};
+  const char* stopSymbolsValue = nullptr;
+  const char* destSymbolsValue = nullptr;
+  const char* wheelchairValue = nullptr;
   const char* themeValue = nullptr;
   char refreshValue[24]{};
   bool showError = false;
@@ -29,6 +32,9 @@ class WienerLinienSettingsActivity final : public UiListActivity {
   void cycleDepartureCount();
   void cycleColumnCount();
   void cycleBoardRows();
+  void toggleStopSymbols();
+  void toggleDestSymbols();
+  void toggleWheelchair();
   void cycleTheme();
   void cycleRefreshInterval();
 };

@@ -339,9 +339,12 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
                                        const bool drawLabels) {
   char title[112]{};
   WienerDisplayFont::normalize(schedule.title[0] ? schedule.title : tr(STR_WL_TITLE), title, sizeof(title));
-  const int titleScale = WienerBoardText::fitScale(title, width - 12, HEADER_HEIGHT - 8, 3);
-  WienerBoardText::trimToWidth(title, width - 12, titleScale);
-  WienerBoardText::drawCentered(renderer, x + 6, y + 3, width - 12, HEADER_HEIGHT - 6, title, titleScale, ink);
+  const auto& config = WIENER_LINIEN_STORE.getConfig();
+  const bool stopSymbols = config.stopSymbols;
+  const int titleScale = WienerBoardText::fitScale(title, width - 12, HEADER_HEIGHT - 8, 3, stopSymbols);
+  WienerBoardText::trimToWidth(title, width - 12, titleScale, stopSymbols);
+  WienerBoardText::drawCentered(renderer, x + 6, y + 3, width - 12, HEADER_HEIGHT - 6, title, titleScale, ink,
+                                stopSymbols);
   renderer.drawLine(x, y + HEADER_HEIGHT, x + width - 1, y + HEADER_HEIGHT, ink);
 
   // The Line/Min labels describe columns that are identical in every section,
@@ -400,7 +403,7 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
     // by exactly what the pictogram takes.
     int destinationLeft = lineRight + 5;
     int destinationWidth = minuteLeft - lineRight - 10;
-    if (departure.barrierFree) {
+    if (departure.barrierFree && config.wheelchair) {
       const auto& icon = wiener_icons::wheelchair();
       const int iconScale = std::clamp(rowHeight / 30, 1, 3);
       const int iconWidth = wiener_icons::width(icon, iconScale);
@@ -416,26 +419,46 @@ void WienerLinienActivity::drawSection(const StopSchedule& schedule, const int x
     char firstLine[112]{};
     char secondLine[112]{};
     WienerDisplayFont::normalize(departure.destination, destination, sizeof(destination));
-    const int singleScale = WienerBoardText::fitScale(destination, destinationWidth, rowHeight - 6, 5);
+    const bool destSymbols = config.destinationSymbols;
+    const int singleScale = WienerBoardText::fitScale(destination, destinationWidth, rowHeight - 6, 5, destSymbols);
     WienerDisplayFont::splitBalanced(destination, firstLine, sizeof(firstLine), secondLine, sizeof(secondLine));
+
+    // A marker is taller than a text row, so a two-line destination holding one
+    // needs real leading between the lines; with the single dot a plain split
+    // uses, the marker's overhang collides with the line above it.
+    const int leading =
+        (destSymbols && (WienerBoardText::hasMarker(firstLine) || WienerBoardText::hasMarker(secondLine)))
+            ? 1 + WienerBoardText::markerOverhangRows()
+            : 1;
+    const int splitRows = 7 * 2 + leading;
     int splitScale = 0;
-    if (secondLine[0] != '\0' && rowHeight >= 17) {
-      splitScale = std::min(WienerBoardText::fitScale(firstLine, destinationWidth, (rowHeight - 3) / 2, 5),
-                            WienerBoardText::fitScale(secondLine, destinationWidth, (rowHeight - 3) / 2, 5));
+    if (secondLine[0] != '\0') {
+      for (int scale = 5; scale >= 1; --scale) {
+        if (WienerBoardText::width(firstLine, scale, destSymbols) <= destinationWidth &&
+            WienerBoardText::width(secondLine, scale, destSymbols) <= destinationWidth &&
+            splitRows * scale <= rowHeight - 6) {
+          splitScale = scale;
+          break;
+        }
+      }
     }
-    if (splitScale >= singleScale && splitScale > 0) {
-      WienerBoardText::trimToWidth(firstLine, destinationWidth, splitScale);
-      WienerBoardText::trimToWidth(secondLine, destinationWidth, splitScale);
-      const int blockHeight = splitScale * 15;
+
+    // Only split when it actually buys a larger scale. On a tie the single line
+    // wins, which keeps a short tail such as "S U" attached to its name instead
+    // of stranding the markers on a line of their own.
+    if (splitScale > singleScale) {
+      WienerBoardText::trimToWidth(firstLine, destinationWidth, splitScale, destSymbols);
+      WienerBoardText::trimToWidth(secondLine, destinationWidth, splitScale, destSymbols);
+      const int blockHeight = splitRows * splitScale;
       const int textTop = rowTop + std::max(0, (rowHeight - blockHeight) / 2);
       WienerBoardText::drawCentered(renderer, destinationLeft, textTop, destinationWidth, 7 * splitScale, firstLine,
-                                    splitScale, ink);
-      WienerBoardText::drawCentered(renderer, destinationLeft, textTop + 8 * splitScale, destinationWidth,
-                                    7 * splitScale, secondLine, splitScale, ink);
+                                    splitScale, ink, destSymbols);
+      WienerBoardText::drawCentered(renderer, destinationLeft, textTop + (7 + leading) * splitScale, destinationWidth,
+                                    7 * splitScale, secondLine, splitScale, ink, destSymbols);
     } else {
-      WienerBoardText::trimToWidth(destination, destinationWidth, singleScale);
+      WienerBoardText::trimToWidth(destination, destinationWidth, singleScale, destSymbols);
       WienerBoardText::drawCentered(renderer, destinationLeft, rowTop + 3, destinationWidth, rowHeight - 6, destination,
-                                    singleScale, ink);
+                                    singleScale, ink, destSymbols);
     }
 
     if (departure.countdown >= 0 && departure.countdown <= 1) {
